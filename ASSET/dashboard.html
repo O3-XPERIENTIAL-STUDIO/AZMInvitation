@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ashraq VIP Invite Dashboard</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #07080d;
+      --surface: #0d0e17;
+      --surface2: #12131e;
+      --surface3: #171825;
+      --border: rgba(255, 255, 255, 0.07);
+      --border-hover: rgba(255, 255, 255, 0.14);
+      --text: #e8eaf0;
+      --text-muted: #6b6e85;
+      --text-dim: #9397b0;
+      --accent: #5b6ef5;
+      --accent-glow: rgba(91, 110, 245, 0.25);
+      --gold: #f0c060;
+      --gold-glow: rgba(240, 192, 96, 0.2);
+      --green: #34c98a;
+      --green-glow: rgba(52, 201, 138, 0.15);
+      --red: #f0516a;
+      --red-glow: rgba(240, 81, 106, 0.15);
+      --amber: #f0a030;
+      --amber-glow: rgba(240, 160, 48, 0.15);
+      --blue: #4fa8f5;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Geist', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(91, 110, 245, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(91, 110, 245, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ambient glow */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 600px;
+      background: radial-gradient(ellipse, rgba(91, 110, 245, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ─── HEADER ─────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header-left {}
+
+    .header-eyebrow {
+      font-family: 'Geist', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .header-title {
+      font-family: 'Geist', sans-serif;
+      font-size: 30px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.8px;
+      line-height: 1.1;
+    }
+
+    .header-title span {
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(52, 201, 138, 0.1);
+      border: 1px solid rgba(52, 201, 138, 0.25);
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--green);
+      letter-spacing: 0.5px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+      }
+    }
+
+    /* ─── STATS GRID ─────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 22px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s;
+      cursor: default;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .stat-card.total::before {
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+    }
+
+    .stat-card.accepted::before {
+      background: linear-gradient(90deg, var(--green), #20d9a0);
+    }
+
+    .stat-card.awaiting::before {
+      background: linear-gradient(90deg, var(--amber), #f0c030);
+    }
+
+    .stat-card.declined::before {
+      background: linear-gradient(90deg, var(--red), #f07080);
+    }
+
+    .stat-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 18px;
+    }
+
+    .stat-card.total .stat-icon {
+      background: var(--accent-glow);
+    }
+
+    .stat-card.accepted .stat-icon {
+      background: var(--green-glow);
+    }
+
+    .stat-card.awaiting .stat-icon {
+      background: var(--amber-glow);
+    }
+
+    .stat-card.declined .stat-icon {
+      background: var(--red-glow);
+    }
+
+    .stat-value {
+      font-family: 'Geist', sans-serif;
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+      letter-spacing: -1px;
+    }
+
+    .stat-card.total .stat-value {
+      color: #fff;
+    }
+
+    .stat-card.accepted .stat-value {
+      color: var(--green);
+    }
+
+    .stat-card.awaiting .stat-value {
+      color: var(--amber);
+    }
+
+    .stat-card.declined .stat-value {
+      color: var(--red);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+    }
+
+    .stat-bar {
+      margin-top: 16px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .stat-card.total .stat-bar-fill {
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      width: 100%;
+    }
+
+    .stat-card.accepted .stat-bar-fill {
+      background: var(--green);
+    }
+
+    .stat-card.awaiting .stat-bar-fill {
+      background: var(--amber);
+    }
+
+    .stat-card.declined .stat-bar-fill {
+      background: var(--red);
+    }
+
+    .stat-percent {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ─── SECTION PANELS ─────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .panel-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    .panel-title {
+      font-family: 'Geist', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.3px;
+    }
+
+    /* ─── INPUTS ──────────────────────────────────── */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .input-row input,
+    .input-row select,
+    .filter-row input,
+    .filter-row select {
+      flex: 1;
+      min-width: 140px;
+      padding: 11px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: 'Geist', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-row input::placeholder,
+    .filter-row input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .input-row input:focus,
+    .input-row select:focus,
+    .filter-row input:focus,
+    .filter-row select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .input-row select option,
+    .filter-row select option {
+      background: #1a1b2e;
+    }
+
+    /* ─── BUTTONS ────────────────────────────────── */
+    .btn {
+      padding: 11px 22px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: 'Geist', sans-serif;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      letter-spacing: 0.2px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      background: #6b7ef8;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: rgba(52, 201, 138, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(52, 201, 138, 0.25);
+    }
+
+    .btn-success:hover {
+      background: rgba(52, 201, 138, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--border-hover);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    /* ─── IMPORT SECTION ─────────────────────────── */
+    .import-file-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 11px 14px;
+      background: var(--surface2);
+      border: 1px dashed rgba(91, 110, 245, 0.3);
+      border-radius: var(--radius-sm);
+      font-family: 'Geist', sans-serif;
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+
+    .import-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      padding-top: 4px;
+    }
+
+    .import-hint strong {
+      color: var(--text-dim);
+    }
+
+    .import-status {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      display: none;
+    }
+
+    .import-status.visible {
+      display: block;
+    }
+
+    /* ─── STICKY FILTER ──────────────────────────── */
+    /* ─── STICKY SEARCH TOOLBAR ─────────────────── */
+    .sticky-filter {
+      position: sticky;
+      top: 12px;
+      z-index: 100;
+      /* Deliberately distinct from content cards */
+      background: #1c1f3b;
+      border: 1px solid rgba(91, 110, 245, 0.5);
+      border-top: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      box-shadow:
+        0 8px 40px rgba(0, 0, 0, 0.8),
+        0 2px 0 rgba(91, 110, 245, 0.2);
+    }
+
+    .sticky-filter input,
+    .sticky-filter select {
+      background: rgba(0, 0, 0, 0.4) !important;
+      border-color: rgba(91, 110, 245, 0.3) !important;
+    }
+
+    .sticky-filter input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .sticky-filter input:focus,
+    .sticky-filter select:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px rgba(91, 110, 245, 0.2) !important;
+    }
+
+    /* ─── FILTER ROW ─────────────────────────────── */
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-row input {
+      min-width: 200px;
+    }
+
+    /* ─── DIVIDER ─────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ─── USER CARDS ──────────────────────────────── */
+    .user-list {
+      margin-top: 8px;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .user-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      animation: fadeUp 0.3s ease both;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .user-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Status accent — left vertical bar */
+    .user-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+    }
+
+    .user-card.status-awaiting::before {
+      background: var(--amber);
+    }
+
+    .user-card.status-accepted::before {
+      background: var(--green);
+    }
+
+    .user-card.status-declined::before {
+      background: var(--red);
+    }
+
+    /* Two-column layout: main body + QR panel */
+    .card-layout {
+      display: flex;
+      align-items: stretch;
+    }
+
+    .card-body {
+      flex: 1;
+      min-width: 0;
+      padding: 20px 22px 20px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Row 1: Name + right-side badges ── */
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-name-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-name {
+      font-family: 'Geist', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.2px;
+      line-height: 1.3;
+    }
+
+    .card-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* Status pill */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 13px;
+      border-radius: 7px;
+    }
+
+    .status-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-awaiting-badge {
+      background: rgba(240, 160, 48, 0.14);
+      color: var(--amber);
+      border: 1px solid rgba(240, 160, 48, 0.35);
+    }
+
+    .status-awaiting-badge::before {
+      background: var(--amber);
+    }
+
+    .status-accepted-badge {
+      background: rgba(52, 201, 138, 0.14);
+      color: var(--green);
+      border: 1px solid rgba(52, 201, 138, 0.35);
+    }
+
+    .status-accepted-badge::before {
+      background: var(--green);
+    }
+
+    .status-declined-badge {
+      background: rgba(240, 81, 106, 0.14);
+      color: var(--red);
+      border: 1px solid rgba(240, 81, 106, 0.35);
+    }
+
+    .status-declined-badge::before {
+      background: var(--red);
+    }
+
+    /* Invite type pill — quieter, secondary */
+    .invite-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 999px;
+      opacity: 0.75;
+    }
+
+    .invite-VVIP {
+      background: rgba(240, 192, 96, 0.1);
+      color: var(--gold);
+      border: 1px solid rgba(240, 192, 96, 0.22);
+    }
+
+    .invite-VIP {
+      background: var(--accent-glow);
+      color: #8fa4ff;
+      border: 1px solid rgba(91, 110, 245, 0.25);
+    }
+
+    .invite-Media {
+      background: rgba(79, 168, 245, 0.1);
+      color: var(--blue);
+      border: 1px solid rgba(79, 168, 245, 0.22);
+    }
+
+    .invite-Organizer {
+      background: rgba(52, 201, 138, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(52, 201, 138, 0.22);
+    }
+
+    .invite-default {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Row 2: Company · Position inline ── */
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .card-meta-company {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .card-meta-sep {
+      color: var(--border-hover);
+      font-size: 14px;
+    }
+
+    .card-meta-position {
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    /* ── Row 3: URL bar ── */
+    .url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 7px 11px;
+      transition: border-color 0.2s;
+    }
+
+    .url-row:hover {
+      border-color: var(--border-hover);
+    }
+
+    .url-icon {
+      font-size: 11px;
+      flex-shrink: 0;
+      opacity: 0.35;
+    }
+
+    .url-text {
+      flex: 1;
+      font-size: 11px;
+      font-family: 'Geist Mono', monospace;
+      color: #7a9ef5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .copy-btn {
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--accent-glow);
+      color: #8fa4ff;
+      border: 1px solid rgba(91, 110, 245, 0.25);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      font-family: 'Geist', sans-serif;
+      letter-spacing: 0.3px;
+    }
+
+    .copy-btn:hover {
+      background: rgba(91, 110, 245, 0.2);
+    }
+
+    /* ── Check-in row ── */
+    .checkin-row {
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .checkin-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .checkin-entries {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.8;
+    }
+
+    /* ── QR side panel ── */
+    /* ── QR Side — desktop: vertical column fixed width ── */
+    .qr-side {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      flex-shrink: 0;
+      width: 148px;
+      padding: 18px 16px;
+      border-left: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.12);
+    }
+
+    .qr-frame {
+      width: 100px;
+      height: 100px;
+      background: #fff;
+      border-radius: 9px;
+      padding: 7px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    }
+
+    .qr-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .qr-empty {
+      width: 100%;
+      height: 100%;
+      background: #f0f0f0;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .qr-caption {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.4;
+      width: 100%;
+    }
+
+    .btn-download {
+      width: 100%;
+      padding: 7px 10px;
+      background: rgba(52, 201, 138, 0.08);
+      color: var(--green);
+      border: 1px solid rgba(52, 201, 138, 0.2);
+      border-radius: 6px;
+      font-family: 'Geist', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .btn-download:hover {
+      background: rgba(52, 201, 138, 0.15);
+    }
+
+    /* ── Additional guests (below full-width) ── */
+    .guests-section {
+      border-top: 1px solid var(--border);
+      padding: 12px 22px 14px 26px;
+    }
+
+    .guests-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 9px;
+    }
+
+    .guests-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .guest-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    .empty-state-title {
+      font-family: 'Geist', sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .empty-state-text {
+      font-size: 14px;
+    }
+
+    /* Results bar */
+    .results-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .results-count {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .results-count strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    @media (max-width: 640px) {
+      .header-title {
+        font-size: 24px;
+      }
+
+      /* Stack card vertically on mobile */
+      .card-layout {
+        flex-direction: column;
+      }
+
+      /* QR becomes a horizontal footer strip inside the card */
+      .qr-side {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 14px;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding: 14px 18px;
+      }
+
+      .qr-frame {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+      }
+
+      /* Text + button stack next to QR */
+      .qr-caption {
+        text-align: left;
+        flex: 1;
+      }
+
+      .btn-download {
+        width: auto;
+        flex-shrink: 0;
+        padding: 7px 14px;
+        white-space: nowrap;
+        font-size: 11px;
+      }
+    }
+
+    /* ─── ADD VIP TABS ───────────────────────────── */
+    .add-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .add-tab {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      font-family: 'Geist', sans-serif;
+      color: var(--text-muted);
+    }
+
+    .add-tab:hover {
+      border-color: var(--border-hover);
+      color: var(--text-dim);
+    }
+
+    .add-tab.active {
+      background: var(--accent-glow);
+      border-color: rgba(91, 110, 245, 0.4);
+      color: var(--text);
+    }
+
+    .add-tab-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    .add-tab-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .add-tab-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: inherit;
+    }
+
+    .add-tab-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+      line-height: 1.4;
+    }
+
+    .add-tab.active .add-tab-label {
+      color: #fff;
+    }
+
+    .add-tab.active .add-tab-desc {
+      color: var(--text-dim);
+    }
+
+    .add-pane {
+      animation: fadeUp 0.2s ease;
+    }
+
+    @media (max-width: 520px) {
+      .add-tabs {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="wrapper">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left">
+        <div class="header-eyebrow">VIP Management System</div>
+        <h1 class="header-title">Ashraq <span>Invite</span> Dashboard</h1>
+      </div>
+      <div class="header-right">
+        <span id="lastUpdated" style="font-size:11px;color:var(--text-muted);"></span>
+        <button class="btn btn-ghost" onclick="manualRefresh()"
+          style="padding:7px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">
+          <span id="refreshIcon" style="font-size:14px;display:inline-block;">↻</span> Refresh
+        </button>
+        <div class="live-badge" id="liveBadge" style="transition:background 0.4s,border-color 0.4s;">
+          <span class="live-dot"></span>
+          Live
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS GRID -->
+    <div class="stats-grid">
+      <div class="stat-card total">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">Total VIPs</div>
+        <div class="stat-bar">
+          <div class="stat-bar-fill" style="width:100%"></div>
+        </div>
+        <div class="stat-percent" id="statTotalSub">All registered guests</div>
+      </div>
+      <div class="stat-card accepted">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" id="statAccepted">0</div>
+        <div class="stat-label">Accepted</div>
+        <div class="stat-bar">
+          <div class="stat-bar-fill" id="statAcceptedBar" style="width:0%"></div>
+        </div>
+        <div class="stat-percent" id="statAcceptedPct">0% of total</div>
+      </div>
+      <div class="stat-card awaiting">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" id="statAwaiting">0</div>
+        <div class="stat-label">Awaiting</div>
+        <div class="stat-bar">
+          <div class="stat-bar-fill" id="statAwaitingBar" style="width:0%"></div>
+        </div>
+        <div class="stat-percent" id="statAwaitingPct">0% of total</div>
+      </div>
+      <div class="stat-card declined">
+        <div class="stat-icon">❌</div>
+        <div class="stat-value" id="statDeclined">0</div>
+        <div class="stat-label">Declined</div>
+        <div class="stat-bar">
+          <div class="stat-bar-fill" id="statDeclinedBar" style="width:0%"></div>
+        </div>
+        <div class="stat-percent" id="statDeclinedPct">0% of total</div>
+      </div>
+    </div>
+
+    <!-- ADD VIP UNIFIED PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-icon">➕</div>
+        <span class="panel-title">Add VIP Guest</span>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="add-tabs">
+        <button class="add-tab active" id="tabManual" onclick="switchTab('manual')">
+          <span class="add-tab-icon">✏️</span>
+          <div class="add-tab-text">
+            <span class="add-tab-label">Manual Entry</span>
+            <span class="add-tab-desc">Add a single guest by filling in details</span>
+          </div>
+        </button>
+        <button class="add-tab" id="tabBulk" onclick="switchTab('bulk')">
+          <span class="add-tab-icon">📂</span>
+          <div class="add-tab-text">
+            <span class="add-tab-label">Bulk Import</span>
+            <span class="add-tab-desc">Upload a CSV or Excel file with multiple guests</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Manual form -->
+      <div id="paneManual" class="add-pane">
+        <div class="input-row">
+          <input type="text" id="fullNameInput" placeholder="Full Name" />
+          <input type="email" id="emailInput" placeholder="Email ID" />
+          <select id="userTypeSelect">
+            <option value="Tier 1">Tier 1</option>
+            <option value="Tier 2">Tier 2</option>
+            <option value="Tier 3">Tier 3</option>
+          </select>
+          <button class="btn btn-primary" onclick="addUser()">
+            <span>＋</span> Add User
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk import form -->
+      <div id="paneBulk" class="add-pane" style="display:none;">
+        <div class="input-row" style="margin-bottom:12px">
+          <input class="import-file-input" id="bulkFileInput" type="file" accept=".csv,.xlsx,.xls" />
+          <button class="btn btn-primary" onclick="importBulkFile()">⬆ Import File</button>
+          <button class="btn btn-ghost" onclick="downloadImportTemplate()">⬇ Download Template</button>
+        </div>
+        <div class="import-hint">
+          Supported: <strong>CSV / Excel</strong>. Required column: <strong>Name</strong>. Optional:
+          <strong>Position</strong>, <strong>Company</strong>, <strong>InviteType</strong>. Defaults: Position=CEO,
+          Company=ARAMCO.
+        </div>
+        <div id="importStatus" class="import-status"></div>
+      </div>
+    </div>
+
+    <!-- FILTER + SEARCH -->
+    <div class="sticky-filter" id="filterPanel">
+      <div class="filter-row">
+        <input type="text" id="searchInput" placeholder="Search by name…" oninput="applyFilters()" />
+        <select id="statusFilter" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          <option value="awaiting">Awaiting</option>
+          <option value="accepted">Accepted</option>
+          <option value="declined">Declined</option>
+        </select>
+        <button class="btn btn-success" onclick="exportCSV()">⬇ Export CSV</button>
+      </div>
+    </div>
+
+    <!-- RESULTS COUNT -->
+    <div class="results-bar">
+      <div class="results-count" id="resultsCount">Showing <strong>0</strong> guests</div>
+    </div>
+
+    <!-- USER LIST -->
+    <div class="user-list" id="userList"></div>
+
+  </div>
+
+  <script>
+    const baseURL = "https://udcwebapi2025-avdxdce9gngffkgx.uaenorth-01.azurewebsites.net";
+    let users = [];
+    let filteredUsers = [];
+
+    function setImportStatus(msg) {
+      const el = document.getElementById('importStatus');
+      if (!el) return;
+      el.textContent = msg || '';
+      el.classList.toggle('visible', !!msg);
+    }
+
+    function normalizeHeader(h) {
+      return (h || '').toString().trim().toLowerCase().replace(/\s+/g, '');
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [], cur = '', inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i], next = text[i + 1];
+        if (ch === '"' && inQuotes && next === '"') { cur += '"'; i++; continue; }
+        if (ch === '"') { inQuotes = !inQuotes; continue; }
+        if (!inQuotes && (ch === '\n' || ch === '\r')) {
+          if (ch === '\r' && next === '\n') i++;
+          row.push(cur); cur = '';
+          if (row.some(c => (c || '').toString().trim() !== '')) rows.push(row);
+          row = []; continue;
+        }
+        if (!inQuotes && ch === ',') { row.push(cur); cur = ''; continue; }
+        cur += ch;
+      }
+      row.push(cur);
+      if (row.some(c => (c || '').toString().trim() !== '')) rows.push(row);
+      return rows;
+    }
+
+    function rowsToObjects(rows) {
+      if (!rows || rows.length < 2) return [];
+      const header = rows[0].map(normalizeHeader);
+      const idx = {
+        name: header.findIndex(h => ['name', 'username', 'vipname'].includes(h)),
+        position: header.findIndex(h => ['position', 'userposition', 'designation', 'title'].includes(h)),
+        company: header.findIndex(h => ['company', 'companyname', 'organization', 'org'].includes(h)),
+        inviteType: header.findIndex(h => ['invitetype', 'type'].includes(h)),
+      };
+      return rows.slice(1).map(r => ({
+        name: (idx.name >= 0 ? r[idx.name] : r[0]) || '',
+        position: idx.position >= 0 ? r[idx.position] : '',
+        company: idx.company >= 0 ? r[idx.company] : '',
+        inviteType: idx.inviteType >= 0 ? r[idx.inviteType] : '',
+      }));
+    }
+
+    function downloadImportTemplate() {
+      const template = `Name,Position,Company,InviteType\nJohn Doe,CEO,ARAMCO,VIP\n`;
+      const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'vip_import_template.csv';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    async function importBulkFile() {
+      const input = document.getElementById('bulkFileInput');
+      const file = input && input.files && input.files[0];
+      if (!file) { setImportStatus('Please choose a CSV or Excel file first.'); return; }
+      setImportStatus(`Reading file: ${file.name}...`);
+      let objects = [];
+      try {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (ext === 'csv') {
+          const text = await file.text();
+          objects = rowsToObjects(parseCSV(text));
+        } else if (ext === 'xlsx' || ext === 'xls') {
+          const buffer = await file.arrayBuffer();
+          const wb = XLSX.read(buffer, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          objects = rowsToObjects(XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' }));
+        } else {
+          setImportStatus('Unsupported file type.'); return;
+        }
+      } catch (e) {
+        setImportStatus('Failed to parse file. Check format and try again.'); return;
+      }
+      const defaultType = document.getElementById("inviteTypeSelect").value;
+      objects = (objects || []).map(o => ({
+        name: (o.name || '').toString().trim(),
+        position: (o.position || '').toString().trim() || 'CEO',
+        company: (o.company || '').toString().trim() || 'ARAMCO',
+        inviteType: (o.inviteType || '').toString().trim() || defaultType,
+      })).filter(o => o.name);
+      if (!objects.length) { setImportStatus('No valid rows found.'); return; }
+      let ok = 0, fail = 0, failures = [];
+      setImportStatus(`Importing ${objects.length} VIP(s)...\n0/${objects.length} completed`);
+      for (let i = 0; i < objects.length; i++) {
+        const item = objects[i];
+        try {
+          const response = await fetch(`${baseURL}/vip/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'http://www.alqadsiahfestival.com', status: 'Awaiting', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
+          });
+          if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+          ok++;
+        } catch (e) { fail++; failures.push(`${i + 1}) ${item.name} - ${e.message}`); }
+        setImportStatus(`Importing ${objects.length} VIP(s)...\n${i + 1}/${objects.length} completed\nSuccess: ${ok} | Failed: ${fail}`);
+        await new Promise(r => setTimeout(r, 80));
+      }
+      let msg = `Import finished.\nTotal: ${objects.length} | Success: ${ok} | Failed: ${fail}`;
+      if (failures.length) msg += `\n\nFailed:\n${failures.slice(0, 30).join('\n')}${failures.length > 30 ? `\n...and ${failures.length - 30} more` : ''}`;
+      setImportStatus(msg);
+      input.value = '';
+      fetchUsers();
+    }
+
+    function updateStats() {
+      const total = users.length;
+      const accepted = users.filter(u => (u.status || '').toLowerCase() === 'accepted').length;
+      const awaiting = users.filter(u => (u.status || '').toLowerCase() === 'awaiting').length;
+      const declined = users.filter(u => (u.status || '').toLowerCase() === 'declined').length;
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statAccepted').textContent = accepted;
+      document.getElementById('statAwaiting').textContent = awaiting;
+      document.getElementById('statDeclined').textContent = declined;
+
+      const pct = n => total > 0 ? Math.round((n / total) * 100) : 0;
+      document.getElementById('statAcceptedPct').textContent = `${pct(accepted)}% of total`;
+      document.getElementById('statAwaitingPct').textContent = `${pct(awaiting)}% of total`;
+      document.getElementById('statDeclinedPct').textContent = `${pct(declined)}% of total`;
+      document.getElementById('statTotalSub').textContent = `${total} registered guests`;
+
+      document.getElementById('statAcceptedBar').style.width = `${pct(accepted)}%`;
+      document.getElementById('statAwaitingBar').style.width = `${pct(awaiting)}%`;
+      document.getElementById('statDeclinedBar').style.width = `${pct(declined)}%`;
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase().trim();
+      const status = document.getElementById('statusFilter').value.toLowerCase().trim();
+      filteredUsers = users.filter(u =>
+        (!search || (u.userName && u.userName.toLowerCase().includes(search))) &&
+        (!status || (u.status && u.status.toLowerCase() === status))
+      );
+      renderUsers();
+    }
+
+    function getInviteClass(type) {
+      if (!type) return 'invite-default';
+      const t = type.toUpperCase();
+      if (t.includes('VVIP')) return 'invite-VVIP';
+      if (t.includes('VIP')) return 'invite-VIP';
+      if (t.includes('MEDIA')) return 'invite-Media';
+      if (t.includes('ORGANIZER')) return 'invite-Organizer';
+      return 'invite-default';
+    }
+
+    function getInviteLabel(type) {
+      if (!type) return 'N/A';
+      const t = type.toUpperCase();
+      if (t.includes('VVIP')) return '★ VVIP';
+      if (t.includes('VIP')) return '◆ VIP';
+      if (t.includes('MEDIA')) return '📷 Media';
+      if (t.includes('ORGANIZER')) return '⚙ Organizer';
+      if (t.includes('MANAGEMENT')) return 'Management';
+      if (t.includes('EXTERNAL')) return 'External';
+      if (t.includes('PHYSICAL')) return 'Physical Invite';
+      return type;
+    }
+
+    function renderUsers() {
+      const container = document.getElementById('userList');
+      container.innerHTML = '';
+
+      const count = filteredUsers.length;
+      document.getElementById('resultsCount').innerHTML = `Showing <strong>${count}</strong> guest${count !== 1 ? 's' : ''}`;
+
+      if (!count) {
+        container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <div class="empty-state-title">No VIPs Found</div>
+          <div class="empty-state-text">Try adjusting your search or filter criteria.</div>
+        </div>`;
+        return;
+      }
+
+      filteredUsers.forEach((u, idx) => {
+        const statusRaw = (u.status || 'awaiting').toLowerCase();
+        const card = document.createElement('div');
+        card.className = `user-card status-${statusRaw}`;
+        card.style.animationDelay = `${idx * 40}ms`;
+
+        // Company and position from API (sample: { userName, company, position })
+        const position = (u.position || u.Position || u.userPosition || '').toString().trim() || '—';
+        const company = (u.company || u.Company || u.companyName || u.CompanyName || '').toString().trim() || '—';
+
+        // Check-in HTML
+        let checkinHTML = '<span style="color:var(--text-muted);font-style:italic">No check-ins recorded</span>';
+        if (u.checkInTimes && Object.keys(u.checkInTimes).length > 0) {
+          const entries = [];
+          Object.entries(u.checkInTimes).forEach(([inviteType, timestamps]) => {
+            if (Array.isArray(timestamps)) {
+              timestamps.forEach(ts => {
+                const d = new Date(ts);
+                entries.push(`<span>🕓 ${d.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })} — ${inviteType}</span>`);
+              });
+            }
+          });
+          if (entries.length) checkinHTML = entries.join('<br>');
+        }
+
+        // Additional guests
+        let guestsHTML = '';
+        if (u.additionalGuests && u.additionalGuests.length > 0) {
+          const chips = u.additionalGuests.map(g => `<div class="guest-chip">${g}</div>`).join('');
+          guestsHTML = `
+          <div class="guests-section">
+            <div class="guests-title">Additional Guests (${u.additionalGuests.length})</div>
+            <div class="guests-grid">${chips}</div>
+          </div>`;
+        }
+
+        // QR
+        let qrHTML = `<div class="qr-frame"><div class="qr-empty">🎫</div></div><div class="qr-caption">No QR generated</div>`;
+        let dlBtn = '';
+        if (u.qrCode) {
+          qrHTML = `<div class="qr-frame"><img src="data:image/png;base64,${u.qrCode}" alt="QR Code" /></div>
+                  <div class="qr-caption">Scan to view invite</div>`;
+          dlBtn = `<button class="btn-download" onclick="downloadQR('${u.qrCode}','${u.userName}')">⬇ Download QR</button>`;
+        }
+
+        const statusBadgeClass = { awaiting: 'status-awaiting-badge', accepted: 'status-accepted-badge', declined: 'status-declined-badge' }[statusRaw] || 'status-awaiting-badge';
+
+        card.innerHTML = `
+        <div class="card-layout">
+          <div class="card-body">
+
+            <div class="card-top">
+              <div class="card-name-row">
+                <div class="card-name">${u.userName || 'VIP Guest'}</div>
+                <span class="invite-badge ${getInviteClass(u.inviteType)}">${getInviteLabel(u.inviteType)}</span>
+              </div>
+              <span class="status-badge ${statusBadgeClass}">${u.status || 'Awaiting'}</span>
+            </div>
+
+            <div class="card-meta">
+              <span class="card-meta-company">${company}</span>
+              <span class="card-meta-sep">·</span>
+              <span class="card-meta-position">${position}</span>
+            </div>
+
+            <div class="url-row">
+              <span class="url-icon">🔗</span>
+              <div class="url-text" title="${u.urlLink || ''}">${u.urlLink || 'No link available'}</div>
+              <button class="copy-btn" onclick="copyURL(this, '${u.urlLink}')">Copy</button>
+            </div>
+
+            <div class="checkin-row">
+              <div class="checkin-label">Check-in History</div>
+              <div class="checkin-entries">${checkinHTML}</div>
+            </div>
+
+          </div>
+
+          <div class="qr-side">
+            ${qrHTML}
+            ${dlBtn}
+          </div>
+        </div>
+
+        ${guestsHTML}`;
+
+        container.appendChild(card);
+      });
+    }
+
+    function copyURL(btn, url) {
+      if (!url) return;
+      navigator.clipboard.writeText(url).then(() => {
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      }).catch(() => {
+        const t = document.createElement('textarea');
+        t.value = url;
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand('copy');
+        document.body.removeChild(t);
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      });
+    }
+
+    function downloadQR(base64, name) {
+      const a = document.createElement('a');
+      a.href = "data:image/png;base64," + base64;
+      a.download = `QR_${(name || 'VIP').replace(/\s+/g, '_')}_${Date.now()}.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    async function addUser() {
+      const fullName = document.getElementById("fullNameInput").value.trim();
+      const emailId = document.getElementById("emailInput").value.trim();
+      const userType = document.getElementById("userTypeSelect").value;
+      if (!fullName) { alert("Enter full name"); return; }
+      if (!emailId) { alert("Enter email ID"); return; }
+      try {
+        const response = await fetch(`${baseURL}/create-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullName: fullName, emailId: emailId, userType: userType })
+        });
+        if (!response.ok) throw new Error(response.statusText);
+        alert(`User "${fullName}" added successfully!`);
+        document.getElementById("fullNameInput").value = '';
+        document.getElementById("emailInput").value = '';
+        fetchUsers();
+      } catch (e) {
+        alert(`Error adding user: ${e.message}`);
+      }
+    }
+
+    async function exportCSV() {
+      try {
+        const res = await fetch(`${baseURL}/vip/export-csv`);
+        if (!res.ok) throw new Error(res.statusText);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `vip_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+      } catch (e) { alert(`Error exporting CSV: ${e.message}`); }
+    }
+
+    // ── Auto-refresh logic ──────────────────────────
+    let lastDataHash = '';
+    let refreshInterval = null;
+    let countdown = 30;
+    let countdownTimer = null;
+    const REFRESH_SECONDS = 30;
+
+    function hashData(data) {
+      return JSON.stringify(data);
+    }
+
+    function updateLastUpdatedLabel() {
+      const el = document.getElementById('lastUpdated');
+      if (el) {
+        const now = new Date();
+        el.textContent = `Updated ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })} · next in ${countdown}s`;
+      }
+    }
+
+    function startCountdown() {
+      clearInterval(countdownTimer);
+      countdown = REFRESH_SECONDS;
+      updateLastUpdatedLabel();
+      countdownTimer = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) countdown = REFRESH_SECONDS;
+        updateLastUpdatedLabel();
+      }, 1000);
+    }
+
+    async function fetchUsers(silent = false) {
+      const badge = document.getElementById('liveBadge');
+      const icon = document.getElementById('refreshIcon');
+
+      if (!silent) {
+        if (icon) { icon.style.display = 'inline-block'; icon.style.animation = 'spin 0.7s linear infinite'; }
+        if (badge) badge.style.opacity = '0.5';
+      }
+
+      try {
+        const response = await fetch(`${baseURL}/vip/all`);
+        if (!response.ok) throw new Error("Failed to fetch");
+        const data = (await response.json()) || [];
+
+        const newHash = hashData(data);
+        if (newHash !== lastDataHash) {
+          users = data;
+          filteredUsers = users;
+          lastDataHash = newHash;
+          applyFilters();
+          updateStats();
+          if (!silent) flashBadge();
+        }
+      } catch (err) {
+        users = JSON.parse(localStorage.getItem("vipUsers")) || [];
+        filteredUsers = users;
+        applyFilters();
+        updateStats();
+      }
+
+      if (icon) { icon.style.animation = ''; }
+      if (badge) badge.style.opacity = '1';
+
+      startCountdown();
+    }
+
+    function flashBadge() {
+      const badge = document.getElementById('liveBadge');
+      if (!badge) return;
+      badge.style.background = 'rgba(52,201,138,0.25)';
+      badge.style.borderColor = 'rgba(52,201,138,0.5)';
+      setTimeout(() => {
+        badge.style.background = '';
+        badge.style.borderColor = '';
+      }, 800);
+    }
+
+    async function manualRefresh() {
+      clearInterval(refreshInterval);
+      await fetchUsers(false);
+      startAutoRefresh();
+    }
+
+    function startAutoRefresh() {
+      clearInterval(refreshInterval);
+      refreshInterval = setInterval(() => fetchUsers(true), REFRESH_SECONDS * 1000);
+    }
+
+
+    function switchTab(tab) {
+      document.getElementById('paneManual').style.display = tab === 'manual' ? '' : 'none';
+      document.getElementById('paneBulk').style.display = tab === 'bulk' ? '' : 'none';
+      document.getElementById('tabManual').classList.toggle('active', tab === 'manual');
+      document.getElementById('tabBulk').classList.toggle('active', tab === 'bulk');
+    }
+
+    // Kick off
+    fetchUsers(false);
+    startAutoRefresh();
+  </script>
+</body>
+
+</html>
