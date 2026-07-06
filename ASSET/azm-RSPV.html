@@ -82,8 +82,11 @@
 
     .tally-cover-img {
       display: block;
-      width: 100%;
+      width: min(100%, 720px);
+      max-width: 720px;
       height: auto;
+      margin: 0 auto;
+      object-fit: contain;
       border: 0 !important;
       border-style: none !important;
       outline: none !important;
@@ -94,7 +97,7 @@
     .tally-page {
       width: 100%;
       max-width: 700px;
-      margin: 50px auto;
+      margin: auto;
       padding: 0 20px;
       flex: 1;
       display: flex;
