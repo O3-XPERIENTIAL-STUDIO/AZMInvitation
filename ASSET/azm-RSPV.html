@@ -106,16 +106,38 @@
 
     /* ── Form Title ─────────────────────────────────────────────── */
     .tally-block-form-title {
-      padding: 1px 0;
+      padding: 1.5rem 0 2.25rem;
     }
 
     .tally-block-form-title h1 {
-      font-size: 2.5rem;
+      font-size: clamp(1.35rem, 2.3vw + 0.85rem, 2.45rem);
       font-weight: 800;
-      line-height: 1.2;
-      padding-bottom: 2.5rem;
+      line-height: 1.08;
+      padding-bottom: 0;
       margin: 0;
       color: #37352F;
+      letter-spacing: -0.02em;
+      text-align: center;
+      white-space: normal;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      max-width: 100%;
+    }
+
+    .tally-block-form-title h1 .title-line {
+      display: block;
+      font-size: inherit;
+    }
+
+    .tally-block-form-title h1 .title-date {
+      display: block;
+      color: #CB953F;
+      font-weight: 400;
+      margin-left: 0;
+      font-size: 0.8em;
+      line-height: 1.2;
+      opacity: 0.95;
     }
 
     /* ── Choices Fieldset ───────────────────────────────────────── */
@@ -301,7 +323,33 @@
       max-width: 520px;
     }
 
+    .tally-error {
+      display: none;
+      margin-top: 1.25rem;
+      padding: 1.25rem 1rem;
+      border-radius: 10px;
+      border: 1px solid #f0c4c4;
+      background: #fff6f6;
+      color: #8a1f1f;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
 
+    .tally-error.show {
+      display: block;
+    }
+
+    .tally-error h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: #8a1f1f;
+    }
+
+    .tally-error p {
+      font-size: 0.98rem;
+      line-height: 1.6;
+      margin: 0;
+    }
 
     /* ── Animations ─────────────────────────────────────────────── */
     @keyframes fadeInUp {
@@ -325,7 +373,7 @@
       }
 
       .tally-block-form-title h1 {
-        font-size: 2rem;
+        font-size: clamp(1.15rem, 4vw, 1.8rem);
         padding-bottom: 2rem;
       }
     }
@@ -348,7 +396,10 @@
 
           <!-- Form Title -->
           <div class="tally-block-form-title">
-            <h1 id="form-heading">azm Academy Graduation Ceremony: 26 July 2026</h1>
+            <h1 id="form-heading">
+              <span class="title-line">azm Academy Graduation Ceremony</span>
+              <span class="title-date">26 July 2026</span>
+            </h1>
           </div>
 
           <!-- Multiple Choice Options -->
@@ -383,6 +434,11 @@
           </fieldset>
         </form>
 
+        <div class="tally-error" id="rsvp-error" tabindex="-1" role="alert" aria-live="assertive">
+          <h2>Resubmission limit reached</h2>
+          <p id="rsvp-error-message"></p>
+        </div>
+
         <!-- ── Confirmation Message (injected by JS) ── -->
         <div class="tally-confirmation" id="confirmation-msg" tabindex="-1" aria-live="polite">
           <div class="confirm-icon" id="confirm-icon" aria-hidden="true"></div>
@@ -416,6 +472,41 @@
       var confirmIcon = document.getElementById('confirm-icon');
       var confirmHead = document.getElementById('confirm-heading');
       var confirmBody = document.getElementById('confirm-body');
+      var rsvpError = document.getElementById('rsvp-error');
+      var rsvpErrorMessage = document.getElementById('rsvp-error-message');
+
+      function showAccessError(message) {
+        form.style.display = 'none';
+        confirmation.classList.remove('show');
+        rsvpErrorMessage.textContent = message;
+        rsvpError.classList.add('show');
+        rsvpError.focus();
+      }
+
+      async function checkRsvpEligibility() {
+        if (!uniqueId) {
+          showAccessError('You exceed a max limit of resubmision, please contact the organizer.');
+          return;
+        }
+
+        try {
+          const response = await fetch(`${baseURL}/api/Users/rsvp-check/${encodeURIComponent(uniqueId)}`);
+          const data = await response.json();
+
+          if (!response.ok || !data || data.success === false || data.canResubmit !== true) {
+            showAccessError(
+              data && data.message ? data.message : 'You exceed a max limit of resubmision, please contact the organizer.'
+            );
+            return;
+          }
+
+          form.style.display = 'block';
+          rsvpError.classList.remove('show');
+        } catch (e) {
+          console.error('Error checking RSVP eligibility:', e);
+          showAccessError('You exceed a max limit of resubmision, please contact the organizer.');
+        }
+      }
 
       /* ── API Call to update status ── */
       async function updateStatus(status) {
@@ -530,6 +621,8 @@
           radioDecline.dispatchEvent(new Event('change'));
         }
       });
+
+      checkRsvpEligibility();
 
       /* ── Keyboard shortcuts: A = Accept, B = Decline ── */
       document.addEventListener('keydown', function (e) {
