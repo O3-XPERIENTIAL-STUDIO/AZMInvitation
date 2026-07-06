@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ashraq VIP Invite Dashboard</title>
+  <title>azm Invitation Management System</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
     rel="stylesheet">
@@ -237,7 +237,7 @@
       background: linear-gradient(90deg, var(--green), #20d9a0);
     }
 
-    .stat-card.awaiting::before {
+    .stat-card.pending::before {
       background: linear-gradient(90deg, var(--amber), #f0c030);
     }
 
@@ -264,7 +264,7 @@
       background: var(--green-glow);
     }
 
-    .stat-card.awaiting .stat-icon {
+    .stat-card.pending .stat-icon {
       background: var(--amber-glow);
     }
 
@@ -289,7 +289,7 @@
       color: var(--green);
     }
 
-    .stat-card.awaiting .stat-value {
+    .stat-card.pending .stat-value {
       color: var(--amber);
     }
 
@@ -328,7 +328,7 @@
       background: var(--green);
     }
 
-    .stat-card.awaiting .stat-bar-fill {
+    .stat-card.pending .stat-bar-fill {
       background: var(--amber);
     }
 
@@ -612,7 +612,7 @@
       width: 3px;
     }
 
-    .user-card.status-awaiting::before {
+    .user-card.status-pending::before {
       background: var(--amber);
     }
 
@@ -693,13 +693,13 @@
       flex-shrink: 0;
     }
 
-    .status-awaiting-badge {
+    .status-pending-badge {
       background: rgba(240, 160, 48, 0.14);
       color: var(--amber);
       border: 1px solid rgba(240, 160, 48, 0.35);
     }
 
-    .status-awaiting-badge::before {
+    .status-pending-badge::before {
       background: var(--amber);
     }
 
@@ -1162,8 +1162,8 @@
     <!-- HEADER -->
     <div class="header">
       <div class="header-left">
-        <div class="header-eyebrow">VIP Management System</div>
-        <h1 class="header-title">Ashraq <span>Invite</span> Dashboard</h1>
+        <div class="header-eyebrow">Invitation Management System</div>
+        <h1 class="header-title">azm <span>Invite</span> Dashboard</h1>
       </div>
       <div class="header-right">
         <span id="lastUpdated" style="font-size:11px;color:var(--text-muted);"></span>
@@ -1198,14 +1198,14 @@
         </div>
         <div class="stat-percent" id="statAcceptedPct">0% of total</div>
       </div>
-      <div class="stat-card awaiting">
+      <div class="stat-card pending">
         <div class="stat-icon">⏳</div>
-        <div class="stat-value" id="statAwaiting">0</div>
-        <div class="stat-label">Awaiting</div>
+        <div class="stat-value" id="statPending">0</div>
+        <div class="stat-label">Pending</div>
         <div class="stat-bar">
-          <div class="stat-bar-fill" id="statAwaitingBar" style="width:0%"></div>
+          <div class="stat-bar-fill" id="statPendingBar" style="width:0%"></div>
         </div>
-        <div class="stat-percent" id="statAwaitingPct">0% of total</div>
+        <div class="stat-percent" id="statPendingPct">0% of total</div>
       </div>
       <div class="stat-card declined">
         <div class="stat-icon">❌</div>
@@ -1247,7 +1247,9 @@
       <div id="paneManual" class="add-pane">
         <div class="input-row">
           <input type="text" id="fullNameInput" placeholder="Full Name" />
+          <input type="text" id="companyInput" placeholder="Company" />
           <input type="email" id="emailInput" placeholder="Email ID" />
+          <input type="text" id="positionInput" placeholder="Position" />
           <select id="userTypeSelect">
             <option value="Tier 1">Tier 1</option>
             <option value="Tier 2">Tier 2</option>
@@ -1281,7 +1283,7 @@
         <input type="text" id="searchInput" placeholder="Search by name…" oninput="applyFilters()" />
         <select id="statusFilter" onchange="applyFilters()">
           <option value="">All Statuses</option>
-          <option value="awaiting">Awaiting</option>
+          <option value="pending">Pending</option>
           <option value="accepted">Accepted</option>
           <option value="declined">Declined</option>
         </select>
@@ -1313,6 +1315,14 @@
 
     function normalizeHeader(h) {
       return (h || '').toString().trim().toLowerCase().replace(/\s+/g, '');
+    }
+
+    function normalizeStatus(value) {
+      const status = (value || '').toString().trim().toLowerCase();
+      if (status === 'accepted') return 'accepted';
+      if (status === 'declined') return 'declined';
+      if (status === 'pending' || status === 'pendng' || status === 'pensinf' || status === 'awaiting') return 'pending';
+      return 'pending';
     }
 
     function parseCSV(text) {
@@ -1401,7 +1411,7 @@
           const response = await fetch(`${baseURL}/vip/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'http://www.alqadsiahfestival.com', status: 'Awaiting', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
+            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'http://www.alqadsiahfestival.com', status: 'pending', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
           });
           if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
           ok++;
@@ -1418,23 +1428,23 @@
 
     function updateStats() {
       const total = users.length;
-      const accepted = users.filter(u => (u.status || '').toLowerCase() === 'accepted').length;
-      const awaiting = users.filter(u => (u.status || '').toLowerCase() === 'awaiting').length;
-      const declined = users.filter(u => (u.status || '').toLowerCase() === 'declined').length;
+      const accepted = users.filter(u => normalizeStatus(u.status) === 'accepted').length;
+      const pending = users.filter(u => normalizeStatus(u.status) === 'pending').length;
+      const declined = users.filter(u => normalizeStatus(u.status) === 'declined').length;
 
       document.getElementById('statTotal').textContent = total;
       document.getElementById('statAccepted').textContent = accepted;
-      document.getElementById('statAwaiting').textContent = awaiting;
+      document.getElementById('statPending').textContent = pending;
       document.getElementById('statDeclined').textContent = declined;
 
       const pct = n => total > 0 ? Math.round((n / total) * 100) : 0;
       document.getElementById('statAcceptedPct').textContent = `${pct(accepted)}% of total`;
-      document.getElementById('statAwaitingPct').textContent = `${pct(awaiting)}% of total`;
+      document.getElementById('statPendingPct').textContent = `${pct(pending)}% of total`;
       document.getElementById('statDeclinedPct').textContent = `${pct(declined)}% of total`;
       document.getElementById('statTotalSub').textContent = `${total} registered guests`;
 
       document.getElementById('statAcceptedBar').style.width = `${pct(accepted)}%`;
-      document.getElementById('statAwaitingBar').style.width = `${pct(awaiting)}%`;
+      document.getElementById('statPendingBar').style.width = `${pct(pending)}%`;
       document.getElementById('statDeclinedBar').style.width = `${pct(declined)}%`;
     }
 
@@ -1443,7 +1453,7 @@
       const status = document.getElementById('statusFilter').value.toLowerCase().trim();
       filteredUsers = users.filter(u =>
         (!search || (u.userName && u.userName.toLowerCase().includes(search))) &&
-        (!status || (u.status && u.status.toLowerCase() === status))
+        (!status || normalizeStatus(u.status) === status)
       );
       renderUsers();
     }
@@ -1489,7 +1499,7 @@
       }
 
       filteredUsers.forEach((u, idx) => {
-        const statusRaw = (u.status || 'awaiting').toLowerCase();
+        const statusRaw = normalizeStatus(u.status || 'pending');
         const card = document.createElement('div');
         card.className = `user-card status-${statusRaw}`;
         card.style.animationDelay = `${idx * 40}ms`;
@@ -1533,7 +1543,8 @@
           dlBtn = `<button class="btn-download" onclick="downloadQR('${u.qrCode}','${u.userName}')">⬇ Download QR</button>`;
         }
 
-        const statusBadgeClass = { awaiting: 'status-awaiting-badge', accepted: 'status-accepted-badge', declined: 'status-declined-badge' }[statusRaw] || 'status-awaiting-badge';
+        const statusBadgeClass = { pending: 'status-pending-badge', accepted: 'status-accepted-badge', declined: 'status-declined-badge' }[statusRaw] || 'status-pending-badge';
+        const statusLabel = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined' }[statusRaw] || 'Pending';
 
         card.innerHTML = `
         <div class="card-layout">
@@ -1544,7 +1555,7 @@
                 <div class="card-name">${u.userName || 'VIP Guest'}</div>
                 <span class="invite-badge ${getInviteClass(u.inviteType)}">${getInviteLabel(u.inviteType)}</span>
               </div>
-              <span class="status-badge ${statusBadgeClass}">${u.status || 'Awaiting'}</span>
+              <span class="status-badge ${statusBadgeClass}">${statusLabel}</span>
             </div>
 
             <div class="card-meta">
@@ -1552,6 +1563,14 @@
               <span class="card-meta-sep">·</span>
               <span class="card-meta-position">${position}</span>
             </div>
+
+            ${u.uniqueId ? `
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px;">
+              <button class="btn btn-primary" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','accepted')">Accept</button>
+              <button class="btn btn-ghost" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','declined')">Decline</button>
+              <button class="btn btn-success" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','pending')">Pending</button>
+            </div>
+            ` : ''}
 
             <div class="url-row">
               <span class="url-icon">🔗</span>
@@ -1604,23 +1623,57 @@
 
     async function addUser() {
       const fullName = document.getElementById("fullNameInput").value.trim();
+      const company = (document.getElementById("companyInput").value || '').trim();
       const emailId = document.getElementById("emailInput").value.trim();
+      const position = (document.getElementById("positionInput").value || '').trim();
       const userType = document.getElementById("userTypeSelect").value;
-      if (!fullName) { alert("Enter full name"); return; }
+
+      if (!fullName) { alert("Enter name"); return; }
       if (!emailId) { alert("Enter email ID"); return; }
+
       try {
-        const response = await fetch(`${baseURL}/create-user`, {
+        const response = await fetch(`${baseURL}/api/Users/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName: fullName, emailId: emailId, userType: userType })
+          body: JSON.stringify({ fullName: fullName, emailId: emailId, userType: userType, company: company, position: position })
         });
-        if (!response.ok) throw new Error(response.statusText);
+        if (!response.ok) {
+          let errorMsg = `${response.status} ${response.statusText}`;
+          try {
+            const errBody = await response.json();
+            if (errBody.message) errorMsg = errBody.message;
+          } catch (e) { }
+          throw new Error(errorMsg);
+        }
         alert(`User "${fullName}" added successfully!`);
         document.getElementById("fullNameInput").value = '';
+        document.getElementById("companyInput").value = '';
         document.getElementById("emailInput").value = '';
+        document.getElementById("positionInput").value = '';
         fetchUsers();
       } catch (e) {
         alert(`Error adding user: ${e.message}`);
+      }
+    }
+
+    async function updateUserStatus(uniqueId, status) {
+      if (!uniqueId) return;
+      const normalized = normalizeStatus(status);
+      try {
+        const response = await fetch(`${baseURL}/api/Users/user-status?uniqueId=${encodeURIComponent(uniqueId)}&status=${encodeURIComponent(normalized)}`, {
+          method: 'POST'
+        });
+        if (!response.ok) {
+          let errorMsg = `${response.status} ${response.statusText}`;
+          try {
+            const errBody = await response.json();
+            if (errBody.message) errorMsg = errBody.message;
+          } catch (e) { }
+          throw new Error(errorMsg);
+        }
+        fetchUsers();
+      } catch (e) {
+        alert(`Error updating status: ${e.message}`);
       }
     }
 
@@ -1677,13 +1730,38 @@
       }
 
       try {
-        const response = await fetch(`${baseURL}/vip/all`);
+        const response = await fetch(`${baseURL}/api/Users/users`);
         if (!response.ok) throw new Error("Failed to fetch");
         const data = (await response.json()) || [];
 
-        const newHash = hashData(data);
+        const normalizeTier = value => (value || '').toString().trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9\-]/g, '');
+
+        // Map response fields to expected format
+        const mappedData = data.map(u => {
+          const tier = normalizeTier(u.userType || 'tier1');
+          const typeSegment = normalizeTier(u.userType || 'tier1');
+          const encodedName = encodeURIComponent(u.fullName || '');
+          const hashKey = u.hashKey || '';
+          const uniqueId = u.uniqueId || '';
+          return {
+            uniqueId: uniqueId,
+            userName: u.fullName,
+            emailId: u.emailId,
+            inviteType: u.userType,
+            company: u.company || '',
+            position: u.position || '',
+            hashKey: hashKey,
+            status: normalizeStatus(u.status || 'pending'),
+            urlLink: `https://alqadsiahfestival.com/azm/${typeSegment}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
+            qrCode: null,
+            checkInTimes: {},
+            additionalGuests: []
+          };
+        });
+
+        const newHash = hashData(mappedData);
         if (newHash !== lastDataHash) {
-          users = data;
+          users = mappedData;
           filteredUsers = users;
           lastDataHash = newHash;
           applyFilters();
