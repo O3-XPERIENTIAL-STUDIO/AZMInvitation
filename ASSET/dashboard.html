@@ -1554,6 +1554,8 @@
         // Company and position from API (sample: { userName, company, position })
         const position = (u.position || u.Position || u.userPosition || '').toString().trim() || '—';
         const company = (u.company || u.Company || u.companyName || u.CompanyName || '').toString().trim() || '—';
+        const rsvpLink = (u.urlLink || '').toString().trim();
+        const emailInviteLink = (u.emailInviteLink || '').toString().trim();
 
         // Check-in HTML
         let checkinHTML = '<span style="color:var(--text-muted);font-style:italic">No check-ins recorded</span>';
@@ -1612,9 +1614,10 @@
             </div>
 
             <div class="url-row">
-              <span class="url-icon">🔗</span>
-              <div class="url-text" title="${u.urlLink || ''}">${u.urlLink || 'No link available'}</div>
-              <button class="copy-btn" onclick="copyURL(this, '${u.urlLink}')">Copy</button>
+              <span class="url-icon">✉️</span>
+              <div class="url-text" title="${emailInviteLink || ''}">${emailInviteLink || 'No email invite link available'}</div>
+              <button class="copy-btn" onclick="copyURL(this, '${emailInviteLink}')">Copy</button>
+              <button class="copy-btn" onclick="openRSVP('${rsvpLink}')">View Invitation</button>
             </div>
 
             <div class="checkin-row">
@@ -1651,6 +1654,14 @@
         btn.textContent = '✓ Copied';
         setTimeout(() => btn.textContent = 'Copy', 2000);
       });
+    }
+
+    function openRSVP(url) {
+      if (!url) {
+        alert('No RSVP URL available');
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     function downloadQR(base64, name) {
@@ -1757,6 +1768,8 @@
           const encodedName = encodeURIComponent(u.fullName || '');
           const hashKey = u.hashKey || '';
           const uniqueId = u.uniqueId || '';
+          const rsvpUrl = `https://azm-edu-invitation.com/azm/${tier}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`;
+          const emailInviteUrl = `https://azm-edu-invitation.com/azm/viewInvitation.html?GuestName=${encodedName}&InvitationLink=${encodeURIComponent(rsvpUrl)}&uniqueId=${encodeURIComponent(uniqueId)}`;
           return {
             uniqueId: uniqueId,
             userName: u.fullName,
@@ -1766,7 +1779,8 @@
             position: u.position || '',
             hashKey: hashKey,
             status: normalizeStatus(u.status || 'pending'),
-            urlLink: `https://azm-edu-invitation.com/azm/${tier}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
+            urlLink: rsvpUrl,
+            emailInviteLink: emailInviteUrl,
             qrCode: null,
             checkInTimes: {},
             additionalGuests: []
