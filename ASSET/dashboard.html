@@ -1411,7 +1411,7 @@
           const response = await fetch(`${baseURL}/vip/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'http://www.alqadsiahfestival.com', status: 'pending', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
+            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'https://azm-edu-invitation.com/', status: 'pending', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
           });
           if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
           ok++;
@@ -1752,7 +1752,7 @@
             position: u.position || '',
             hashKey: hashKey,
             status: normalizeStatus(u.status || 'pending'),
-            urlLink: `https://alqadsiahfestival.com/azm/${typeSegment}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
+            urlLink: `https://azm-edu-invitation.com/azm/${typeSegment}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
             qrCode: null,
             checkInTimes: {},
             additionalGuests: []
