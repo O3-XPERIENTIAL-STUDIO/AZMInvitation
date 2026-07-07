@@ -766,6 +766,24 @@
       border: 1px solid var(--border);
     }
 
+    .invite-DeputyGovernor {
+      background: rgba(240, 192, 96, 0.1);
+      color: var(--gold);
+      border: 1px solid rgba(240, 192, 96, 0.22);
+    }
+
+    .invite-Guest {
+      background: var(--accent-glow);
+      color: #8fa4ff;
+      border: 1px solid rgba(91, 110, 245, 0.25);
+    }
+
+    .invite-Students {
+      background: rgba(52, 201, 138, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(52, 201, 138, 0.22);
+    }
+
     /* ── Row 2: Company · Position inline ── */
     .card-meta {
       display: flex;
@@ -1251,9 +1269,9 @@
           <input type="email" id="emailInput" placeholder="Email ID" />
           <input type="text" id="positionInput" placeholder="Position" />
           <select id="userTypeSelect">
-            <option value="Tier 1">Tier 1</option>
-            <option value="Tier 2">Tier 2</option>
-            <option value="Tier 3">Tier 3</option>
+            <option value="Deputy Governor">Deputy Governor</option>
+            <option value="Guest">Guest</option>
+            <option value="Students">Students</option>
           </select>
           <button class="btn btn-primary" onclick="addUser()">
             <span>＋</span> Add User
@@ -1270,7 +1288,8 @@
         </div>
         <div class="import-hint">
           Supported: <strong>CSV / Excel</strong>. Required column: <strong>Name</strong>. Optional:
-          <strong>Position</strong>, <strong>Company</strong>, <strong>InviteType</strong>. Defaults: Position=CEO,
+          <strong>Position</strong>, <strong>Company</strong>, <strong>InviteType</strong> (Deputy Governor, Guest,
+          Students). Defaults: Position=CEO,
           Company=ARAMCO.
         </div>
         <div id="importStatus" class="import-status"></div>
@@ -1325,6 +1344,26 @@
       return 'pending';
     }
 
+    function normalizeUserTypeKey(value) {
+      return (value || '').toString().trim().toLowerCase().replace(/\s+/g, '');
+    }
+
+    function resolveUserTier(userType) {
+      const key = normalizeUserTypeKey(userType);
+      if (key === 'tier1' || key === 'deputygovernor' || key === 'deputygoverner') return 'tier1';
+      if (key === 'tier2' || key === 'guest') return 'tier2';
+      if (key === 'tier3' || key === 'students' || key === 'student') return 'tier3';
+      return 'tier1';
+    }
+
+    function getUserTypeLabel(userType) {
+      const tier = resolveUserTier(userType);
+      if (tier === 'tier1') return 'Deputy Governor';
+      if (tier === 'tier2') return 'Guest';
+      if (tier === 'tier3') return 'Students';
+      return 'Guest';
+    }
+
     function parseCSV(text) {
       const rows = [];
       let row = [], cur = '', inQuotes = false;
@@ -1364,7 +1403,7 @@
     }
 
     function downloadImportTemplate() {
-      const template = `Name,Position,Company,InviteType\nJohn Doe,CEO,ARAMCO,VIP\n`;
+      const template = `Name,Position,Company,InviteType\nJohn Doe,CEO,ARAMCO,Guest\n`;
       const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1395,12 +1434,12 @@
       } catch (e) {
         setImportStatus('Failed to parse file. Check format and try again.'); return;
       }
-      const defaultType = document.getElementById("inviteTypeSelect").value;
+      const defaultType = document.getElementById("userTypeSelect").value;
       objects = (objects || []).map(o => ({
         name: (o.name || '').toString().trim(),
         position: (o.position || '').toString().trim() || 'CEO',
         company: (o.company || '').toString().trim() || 'ARAMCO',
-        inviteType: (o.inviteType || '').toString().trim() || defaultType,
+        inviteType: getUserTypeLabel((o.inviteType || '').toString().trim() || defaultType),
       })).filter(o => o.name);
       if (!objects.length) { setImportStatus('No valid rows found.'); return; }
       let ok = 0, fail = 0, failures = [];
@@ -1460,6 +1499,10 @@
 
     function getInviteClass(type) {
       if (!type) return 'invite-default';
+      const key = normalizeUserTypeKey(type);
+      if (key === 'tier1' || key === 'deputygovernor' || key === 'deputygoverner') return 'invite-DeputyGovernor';
+      if (key === 'tier2' || key === 'guest') return 'invite-Guest';
+      if (key === 'tier3' || key === 'students' || key === 'student') return 'invite-Students';
       const t = type.toUpperCase();
       if (t.includes('VVIP')) return 'invite-VVIP';
       if (t.includes('VIP')) return 'invite-VIP';
@@ -1470,6 +1513,10 @@
 
     function getInviteLabel(type) {
       if (!type) return 'N/A';
+      const key = normalizeUserTypeKey(type);
+      if (key === 'tier1' || key === 'deputygovernor' || key === 'deputygoverner') return 'Deputy Governor';
+      if (key === 'tier2' || key === 'guest') return 'Guest';
+      if (key === 'tier3' || key === 'students' || key === 'student') return 'Students';
       const t = type.toUpperCase();
       if (t.includes('VVIP')) return '★ VVIP';
       if (t.includes('VIP')) return '◆ VIP';
@@ -1564,14 +1611,6 @@
               <span class="card-meta-position">${position}</span>
             </div>
 
-            ${u.uniqueId ? `
-            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px;">
-              <button class="btn btn-primary" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','accepted')">Accept</button>
-              <button class="btn btn-ghost" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','declined')">Decline</button>
-              <button class="btn btn-success" style="padding:6px 10px; font-size:11px;" onclick="updateUserStatus('${u.uniqueId}','pending')">Pending</button>
-            </div>
-            ` : ''}
-
             <div class="url-row">
               <span class="url-icon">🔗</span>
               <div class="url-text" title="${u.urlLink || ''}">${u.urlLink || 'No link available'}</div>
@@ -1656,27 +1695,6 @@
       }
     }
 
-    async function updateUserStatus(uniqueId, status) {
-      if (!uniqueId) return;
-      const normalized = normalizeStatus(status);
-      try {
-        const response = await fetch(`${baseURL}/api/Users/user-status?uniqueId=${encodeURIComponent(uniqueId)}&status=${encodeURIComponent(normalized)}`, {
-          method: 'POST'
-        });
-        if (!response.ok) {
-          let errorMsg = `${response.status} ${response.statusText}`;
-          try {
-            const errBody = await response.json();
-            if (errBody.message) errorMsg = errBody.message;
-          } catch (e) { }
-          throw new Error(errorMsg);
-        }
-        fetchUsers();
-      } catch (e) {
-        alert(`Error updating status: ${e.message}`);
-      }
-    }
-
     async function exportCSV() {
       try {
         const res = await fetch(`${baseURL}/vip/export-csv`);
@@ -1734,12 +1752,8 @@
         if (!response.ok) throw new Error("Failed to fetch");
         const data = (await response.json()) || [];
 
-        const normalizeTier = value => (value || '').toString().trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9\-]/g, '');
-
-        // Map response fields to expected format
         const mappedData = data.map(u => {
-          const tier = normalizeTier(u.userType || 'tier1');
-          const typeSegment = normalizeTier(u.userType || 'tier1');
+          const tier = resolveUserTier(u.userType);
           const encodedName = encodeURIComponent(u.fullName || '');
           const hashKey = u.hashKey || '';
           const uniqueId = u.uniqueId || '';
@@ -1747,12 +1761,12 @@
             uniqueId: uniqueId,
             userName: u.fullName,
             emailId: u.emailId,
-            inviteType: u.userType,
+            inviteType: getUserTypeLabel(u.userType),
             company: u.company || '',
             position: u.position || '',
             hashKey: hashKey,
             status: normalizeStatus(u.status || 'pending'),
-            urlLink: `https://azm-edu-invitation.com/azm/${typeSegment}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
+            urlLink: `https://azm-edu-invitation.com/azm/${tier}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`,
             qrCode: null,
             checkInTimes: {},
             additionalGuests: []
