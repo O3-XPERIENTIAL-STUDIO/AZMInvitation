@@ -1287,10 +1287,9 @@
           <button class="btn btn-ghost" onclick="downloadImportTemplate()">⬇ Download Template</button>
         </div>
         <div class="import-hint">
-          Supported: <strong>CSV / Excel</strong>. Required column: <strong>Name</strong>. Optional:
-          <strong>Position</strong>, <strong>Company</strong>, <strong>InviteType</strong> (Deputy Governor, Guest,
-          Students). Defaults: Position=CEO,
-          Company=ARAMCO.
+          Supported: <strong>CSV / Excel</strong>. Required columns: <strong>FullName</strong>,
+          <strong>EmailId</strong>. Optional: <strong>UserType</strong> (Deputy Governor, Guest, Students),
+          <strong>Company</strong>, <strong>Position</strong>.
         </div>
         <div id="importStatus" class="import-status"></div>
       </div>
@@ -1389,27 +1388,38 @@
       if (!rows || rows.length < 2) return [];
       const header = rows[0].map(normalizeHeader);
       const idx = {
-        name: header.findIndex(h => ['name', 'username', 'vipname'].includes(h)),
+        fullName: header.findIndex(h => ['fullname', 'name', 'username', 'vipname'].includes(h)),
+        emailId: header.findIndex(h => ['emailid', 'email', 'mail'].includes(h)),
         position: header.findIndex(h => ['position', 'userposition', 'designation', 'title'].includes(h)),
         company: header.findIndex(h => ['company', 'companyname', 'organization', 'org'].includes(h)),
-        inviteType: header.findIndex(h => ['invitetype', 'type'].includes(h)),
+        userType: header.findIndex(h => ['usertype', 'invitetype', 'type'].includes(h)),
       };
       return rows.slice(1).map(r => ({
-        name: (idx.name >= 0 ? r[idx.name] : r[0]) || '',
+        fullName: (idx.fullName >= 0 ? r[idx.fullName] : r[0]) || '',
+        emailId: idx.emailId >= 0 ? r[idx.emailId] : '',
         position: idx.position >= 0 ? r[idx.position] : '',
         company: idx.company >= 0 ? r[idx.company] : '',
-        inviteType: idx.inviteType >= 0 ? r[idx.inviteType] : '',
+        userType: idx.userType >= 0 ? r[idx.userType] : '',
       }));
     }
 
     function downloadImportTemplate() {
-      const template = `Name,Position,Company,InviteType\nJohn Doe,CEO,ARAMCO,Guest\n`;
+      const template = `FullName,EmailId,UserType,Company,Position
+John Doe,john.doe@example.com,Guest,ARAMCO,Manager
+Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
+`;
       const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = 'vip_import_template.csv';
+      a.href = url; a.download = 'azm_user_import_template.csv';
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    function isValidEmail(email) {
+      const value = (email || '').toString().trim();
+      if (!value) return false;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     }
 
     async function importBulkFile() {
@@ -1434,28 +1444,39 @@
       } catch (e) {
         setImportStatus('Failed to parse file. Check format and try again.'); return;
       }
-      const defaultType = document.getElementById("userTypeSelect").value;
+      const defaultUserType = getUserTypeLabel(document.getElementById("userTypeSelect").value);
       objects = (objects || []).map(o => ({
-        name: (o.name || '').toString().trim(),
-        position: (o.position || '').toString().trim() || 'CEO',
-        company: (o.company || '').toString().trim() || 'ARAMCO',
-        inviteType: getUserTypeLabel((o.inviteType || '').toString().trim() || defaultType),
-      })).filter(o => o.name);
+        fullName: (o.fullName || '').toString().trim(),
+        emailId: (o.emailId || '').toString().trim(),
+        userType: getUserTypeLabel((o.userType || '').toString().trim() || defaultUserType),
+        company: (o.company || '').toString().trim(),
+        position: (o.position || '').toString().trim(),
+      })).filter(o => o.fullName || o.emailId || o.userType || o.company || o.position);
       if (!objects.length) { setImportStatus('No valid rows found.'); return; }
       let ok = 0, fail = 0, failures = [];
-      setImportStatus(`Importing ${objects.length} VIP(s)...\n0/${objects.length} completed`);
+      setImportStatus(`Importing ${objects.length} user(s)...\n0/${objects.length} completed`);
       for (let i = 0; i < objects.length; i++) {
         const item = objects[i];
         try {
-          const response = await fetch(`${baseURL}/vip/add`, {
+          if (!item.fullName) throw new Error('Missing FullName');
+          if (!item.emailId) throw new Error('Missing EmailId');
+          if (!isValidEmail(item.emailId)) throw new Error('Invalid EmailId');
+
+          const response = await fetch(`${baseURL}/api/Users/create-user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userName: item.name, position: item.position, company: item.company, urlLink: 'https://azm-edu-invitation.com/', status: 'pending', remarks: '', qrCode: null, uniqueId: null, inviteType: item.inviteType })
+            body: JSON.stringify({
+              fullName: item.fullName,
+              emailId: item.emailId,
+              userType: item.userType,
+              company: item.company,
+              position: item.position
+            })
           });
           if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
           ok++;
-        } catch (e) { fail++; failures.push(`${i + 1}) ${item.name} - ${e.message}`); }
-        setImportStatus(`Importing ${objects.length} VIP(s)...\n${i + 1}/${objects.length} completed\nSuccess: ${ok} | Failed: ${fail}`);
+        } catch (e) { fail++; failures.push(`${i + 1}) ${item.fullName || '(no name)'} - ${e.message}`); }
+        setImportStatus(`Importing ${objects.length} user(s)...\n${i + 1}/${objects.length} completed\nSuccess: ${ok} | Failed: ${fail}`);
         await new Promise(r => setTimeout(r, 80));
       }
       let msg = `Import finished.\nTotal: ${objects.length} | Success: ${ok} | Failed: ${fail}`;
