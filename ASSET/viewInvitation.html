@@ -36,6 +36,37 @@
             display: block;
         }
 
+        /* Prevent mobile mail apps (iOS Mail data detectors, Gmail, etc.)
+           from auto-styling detected dates/times/addresses as blue hyperlinks. */
+        a[x-apple-data-detectors],
+        .aBn {
+            color: inherit !important;
+            text-decoration: none !important;
+            font-size: inherit !important;
+            font-family: inherit !important;
+            font-weight: inherit !important;
+            line-height: inherit !important;
+        }
+
+        .no-link-style {
+            color: inherit !important;
+            text-decoration: none !important;
+        }
+
+        /* Outlook mobile (iOS/Android) wraps recognized dates/times in its own
+           "Add to calendar" style link. Pre-wrapping the text in a real <a> with
+           forced styling stops it from re-styling/relinking the text. */
+        a.event-detail-link,
+        a.event-detail-link:link,
+        a.event-detail-link:visited,
+        a.event-detail-link:hover,
+        a.event-detail-link:active {
+            color: #ffffff !important;
+            text-decoration: none !important;
+            pointer-events: none;
+            cursor: default;
+        }
+
         @media only screen and (max-width: 800px) {
             .container {
                 width: 100% !important;
@@ -182,13 +213,13 @@
                         line-height:22px;
                         font-weight:bold;
                         color:#d9a15b;">Day:</div>
-                                                        <div style="
+                                                        <div class="no-link-style" style="
                         font-family:Arial, Helvetica, sans-serif;
                         font-size:16px;
                         line-height:24px;
                         font-weight:400;
                         color:#ffffff;
-                        padding-top:4px;">26th July, 2026</div>
+                        padding-top:4px;"><a href="#" class="no-link-style event-detail-link" style="color:#ffffff; text-decoration:none; font-family:Arial, Helvetica, sans-serif; font-size:16px; font-weight:400;">26th&nbsp;July,&nbsp;2026</a></div>
                                                     </td>
                                                     <td align="center" valign="top" class="detail-col" width="33%"
                                                         style="padding:0 12px;">
@@ -198,13 +229,13 @@
                         line-height:22px;
                         font-weight:bold;
                         color:#d9a15b;">Time:</div>
-                                                        <div style="
+                                                        <div class="no-link-style" style="
                         font-family:Arial, Helvetica, sans-serif;
                         font-size:16px;
                         line-height:24px;
                         font-weight:400;
                         color:#ffffff;
-                        padding-top:4px;">09:30 AM</div>
+                        padding-top:4px;"><a href="#" class="no-link-style event-detail-link" style="color:#ffffff; text-decoration:none; font-family:Arial, Helvetica, sans-serif; font-size:16px; font-weight:400;">09:30&nbsp;AM</a></div>
                                                     </td>
                                                     <td align="center" valign="top" class="detail-col" width="33%"
                                                         style="padding:0 12px;">
@@ -214,13 +245,13 @@
                         line-height:22px;
                         font-weight:bold;
                         color:#d9a15b;">Venue:</div>
-                                                        <div style="
+                                                        <div class="no-link-style" style="
                         font-family:Arial, Helvetica, sans-serif;
                         font-size:16px;
                         line-height:24px;
                         font-weight:400;
                         color:#ffffff;
-                        padding-top:4px;">King Saud University</div>
+                        padding-top:4px;"><a href="#" class="no-link-style event-detail-link" style="color:#ffffff; text-decoration:none; font-family:Arial, Helvetica, sans-serif; font-size:16px; font-weight:400;">King&nbsp;Saud&nbsp;University</a></div>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -406,7 +437,7 @@
             var TIER_CONTENT = {
                 tier1: {
                     greetingPrefix: "",
-                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the academy\u2019s first cohort of graduates across specialized applied training programs.",
+                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the Academy\u2019s first cohort of graduates across specialized applied training programs.",
                     paragraph2: "This milestone ceremony recognizes Saudi talent prepared through hands-on, employer-aligned learning pathways that support workforce readiness across key sectors, including health, safety and environment, facility management, and construction site engineering.",
                     paragraph3: "Your gracious presence would bring great honour to this milestone occasion and to the graduates whose achievement reflects the academy\u2019s commitment to national talent development and workforce readiness.",
                     footerMessage: "",
@@ -414,7 +445,7 @@
                 },
                 tier2: {
                     greetingPrefix: "Dear ",
-                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the academy\u2019s first cohort of graduates across specialized applied training programs.",
+                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the Academy\u2019s first cohort of graduates across specialized applied training programs.",
                     paragraph2: "This milestone ceremony recognizes Saudi talent prepared through hands-on, employer-aligned learning pathways that support workforce readiness across key sectors, including health, safety and environment, facility management, and construction site engineering.",
                     paragraph3: "We would be honoured by your presence as we celebrate the graduates, partners, and stakeholders contributing to the development of the Kingdom\u2019s future-ready workforce.",
                     footerMessage: "We look forward to welcoming you.",
@@ -423,7 +454,7 @@
                 tier3: {
                     greetingPrefix: "Congratulations ",
                     paragraph1: "azm Academy is honoured to invite you to attend its First Graduation Ceremony, during which you will be recognized for your valued contribution to the academy\u2019s mission of preparing technically skilled Saudi talent for the Kingdom\u2019s evolving workforce needs.",
-                    paragraph2: "This inaugural ceremony celebrates the academy\u2019s first cohort of graduates across applied training programs designed to strengthen workplace readiness, technical capability, and alignment between learners and employers.",
+                    paragraph2: "This inaugural ceremony celebrates the Academy\u2019s first cohort of graduates across applied training programs designed to strengthen workplace readiness, technical capability, and alignment between learners and employers.",
                     paragraph3: "Your recognition reflects the important role of committed partners and contributors in advancing national capability development and supporting meaningful employment pathways for Saudi talent.",
                     footerMessage: "We look forward to welcoming and honoring you at this milestone occasion.",
                     footerSignoff: "Warm Regards,<br>Corporate Communications Department<br>azm Academy"
