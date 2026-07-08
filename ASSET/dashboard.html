@@ -1321,6 +1321,7 @@
 
   <script>
     const baseURL = "https://udcwebapi2025-avdxdce9gngffkgx.uaenorth-01.azurewebsites.net";
+    const inviteEmailEndpoint = `${baseURL}/api/Users/send-invitation-email`;
     let users = [];
     let filteredUsers = [];
 
@@ -1422,6 +1423,113 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     }
 
+    async function sendInvitationEmail(payload) {
+      const response = await fetch(inviteEmailEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        let msg = `${response.status} ${response.statusText}`;
+        try {
+          const err = await response.json();
+          if (err && (err.message || err.error)) msg = err.message || err.error;
+        } catch (e) { }
+        throw new Error(msg);
+      }
+      return true;
+    }
+
+    const inviteMailStatusKey = 'azmInviteMailStatusMap';
+
+    function getInviteMailStatusMap() {
+      try {
+        const raw = localStorage.getItem(inviteMailStatusKey);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveInviteMailStatusMap(map) {
+      localStorage.setItem(inviteMailStatusKey, JSON.stringify(map || {}));
+    }
+
+    function getUserMailStatusKey(user) {
+      if (!user) return '';
+      const key = (user.uniqueId || user.emailId || user.userName || '').toString().trim().toLowerCase();
+      return key;
+    }
+
+    function isInviteMailAlreadySent(user) {
+      if (user && user.inviteSend) return true;
+      const key = getUserMailStatusKey(user);
+      if (!key) return false;
+      const map = getInviteMailStatusMap();
+      return !!(map[key] && map[key].sent);
+    }
+
+    function markInviteMailSent(user) {
+      const key = getUserMailStatusKey(user);
+      if (!key) return;
+      const map = getInviteMailStatusMap();
+      map[key] = {
+        sent: true,
+        sentAt: new Date().toISOString(),
+        emailId: (user.emailId || '').toString().trim(),
+        fullName: (user.userName || '').toString().trim()
+      };
+      saveInviteMailStatusMap(map);
+    }
+
+    function getInviteMailSentAt(user) {
+      const key = getUserMailStatusKey(user);
+      if (!key) return '';
+      const map = getInviteMailStatusMap();
+      return map[key] && map[key].sentAt ? map[key].sentAt : '';
+    }
+
+    async function sendInviteForUser(btn, encodedUserKey) {
+      const userKey = decodeURIComponent(encodedUserKey || '');
+      const user = users.find(u => getUserMailStatusKey(u) === userKey);
+      if (!user) {
+        alert('User not found.');
+        return;
+      }
+      if (!user.emailId) {
+        alert('User has no email ID.');
+        return;
+      }
+      if (isInviteMailAlreadySent(user)) {
+        alert('Invitation email already sent.');
+        return;
+      }
+
+      const originalText = btn ? btn.textContent : '';
+      try {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Sending...';
+        }
+
+        await sendInvitationEmail({
+          fullName: user.userName || '',
+          emailId: user.emailId || '',
+          userType: user.inviteType || ''
+        });
+
+        markInviteMailSent(user);
+        user.inviteSend = true;
+        renderUsers();
+      } catch (e) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText || 'Send Mail';
+        }
+        alert(`Failed to send invitation email: ${e.message}`);
+      }
+    }
+
     async function importBulkFile() {
       const input = document.getElementById('bulkFileInput');
       const file = input && input.files && input.files[0];
@@ -1476,10 +1584,10 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
           if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
           ok++;
         } catch (e) { fail++; failures.push(`${i + 1}) ${item.fullName || '(no name)'} - ${e.message}`); }
-        setImportStatus(`Importing ${objects.length} user(s)...\n${i + 1}/${objects.length} completed\nSuccess: ${ok} | Failed: ${fail}`);
+        setImportStatus(`Importing ${objects.length} user(s)...\n${i + 1}/${objects.length} completed\nCreated: ${ok} | Create Failed: ${fail}`);
         await new Promise(r => setTimeout(r, 80));
       }
-      let msg = `Import finished.\nTotal: ${objects.length} | Success: ${ok} | Failed: ${fail}`;
+      let msg = `Import finished.\nTotal: ${objects.length} | Created: ${ok} | Create Failed: ${fail}`;
       if (failures.length) msg += `\n\nFailed:\n${failures.slice(0, 30).join('\n')}${failures.length > 30 ? `\n...and ${failures.length - 30} more` : ''}`;
       setImportStatus(msg);
       input.value = '';
@@ -1577,6 +1685,13 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const company = (u.company || u.Company || u.companyName || u.CompanyName || '').toString().trim() || '—';
         const rsvpLink = (u.urlLink || '').toString().trim();
         const emailInviteLink = (u.emailInviteLink || '').toString().trim();
+        const userMailStatusKey = encodeURIComponent(getUserMailStatusKey(u));
+        const alreadySent = isInviteMailAlreadySent(u);
+        const sentAt = getInviteMailSentAt(u);
+        const sendMailButtonLabel = alreadySent ? 'Already Sent' : 'Send Mail';
+        const sendMailButtonTitle = alreadySent && sentAt
+          ? `Sent on ${new Date(sentAt).toLocaleString()}`
+          : 'Send invitation email';
 
         // Check-in HTML
         let checkinHTML = '<span style="color:var(--text-muted);font-style:italic">No check-ins recorded</span>';
@@ -1639,6 +1754,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
               <div class="url-text" title="${emailInviteLink || ''}">${emailInviteLink || 'No email invite link available'}</div>
               <button class="copy-btn" onclick="copyURL(this, '${emailInviteLink}')">Copy</button>
               <button class="copy-btn" onclick="openRSVP('${rsvpLink}')">View Invitation</button>
+              <!-- <button class="copy-btn" title="${sendMailButtonTitle}" onclick="sendInviteForUser(this, '${userMailStatusKey}')" ${alreadySent ? 'disabled' : ''}>${sendMailButtonLabel}</button> -->
             </div>
 
             <div class="checkin-row">
@@ -1800,6 +1916,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
             position: u.position || '',
             hashKey: hashKey,
             status: normalizeStatus(u.status || 'pending'),
+            inviteSend: !!u.inviteSend,
             urlLink: rsvpUrl,
             emailInviteLink: emailInviteUrl,
             qrCode: null,
