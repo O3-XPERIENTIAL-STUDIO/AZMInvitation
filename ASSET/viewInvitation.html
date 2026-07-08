@@ -72,6 +72,16 @@
                 width: 100% !important;
                 box-sizing: border-box !important;
             }
+
+            .detail-col {
+                display: block !important;
+                width: 100% !important;
+                padding: 0 0 18px 0 !important;
+            }
+
+            .detail-col:last-child {
+                padding-bottom: 0 !important;
+            }
         }
     </style>
 </head>
@@ -116,7 +126,7 @@
           font-weight:bold;
           color:#1f2937;
           text-align:center;">
-                                    Dear <span id="guestNameText">{{GuestName}}</span>,
+                                    <span id="greetingPrefix">{{GreetingPrefix}}</span><span id="guestNameText">{{GuestName}}</span>,
 
                                 </div>
 
@@ -126,16 +136,115 @@
                         <tr>
                             <td align="center" class="mobile-padding" style="padding:14px 42px 34px 42px;">
 
-                                <div class="mobile-text" style="
+                                <div class="mobile-text" id="paragraph1Text" style="
           font-family:Arial, Helvetica, sans-serif;
           font-size:20px;
           line-height:32px;
           font-weight:400;
           color:#4b5563;
+          text-align:center;">{{Paragraph1}}</div>
+
+                            </td>
+                        </tr>
+
+                        <!-- TEXT 2 -->
+                        <tr>
+                            <td align="center" class="mobile-padding" style="padding:0 42px 34px 42px;">
+
+                                <div class="mobile-text" id="paragraph2Text" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:20px;
+          line-height:32px;
+          font-weight:400;
+          color:#4b5563;
+          text-align:center;">{{Paragraph2}}</div>
+
+                            </td>
+                        </tr>
+
+                        <!-- EVENT DETAILS -->
+                        <tr>
+                            <td align="center">
+
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                    bgcolor="#025d4d" style="background:#025d4d;">
+                                    <tr>
+                                        <td align="center" class="mobile-padding" style="padding:28px 42px;">
+
+                                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                                                border="0">
+                                                <tr>
+                                                    <td align="center" valign="top" class="detail-col" width="33%"
+                                                        style="padding:0 12px;">
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:22px;
+                        font-weight:bold;
+                        color:#d9a15b;">Day:</div>
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:24px;
+                        font-weight:400;
+                        color:#ffffff;
+                        padding-top:4px;">26th July, 2026</div>
+                                                    </td>
+                                                    <td align="center" valign="top" class="detail-col" width="33%"
+                                                        style="padding:0 12px;">
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:22px;
+                        font-weight:bold;
+                        color:#d9a15b;">Time:</div>
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:24px;
+                        font-weight:400;
+                        color:#ffffff;
+                        padding-top:4px;">09:30 AM</div>
+                                                    </td>
+                                                    <td align="center" valign="top" class="detail-col" width="33%"
+                                                        style="padding:0 12px;">
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:22px;
+                        font-weight:bold;
+                        color:#d9a15b;">Venue:</div>
+                                                        <div style="
+                        font-family:Arial, Helvetica, sans-serif;
+                        font-size:16px;
+                        line-height:24px;
+                        font-weight:400;
+                        color:#ffffff;
+                        padding-top:4px;">King Saud University</div>
+                                                    </td>
+                                                </tr>
+                                            </table>
+
+                                        </td>
+                                    </tr>
+                                </table>
+
+                            </td>
+                        </tr>
+
+                        <!-- ATTACHMENT NOTE -->
+                        <tr>
+                            <td align="center" class="mobile-padding" style="padding:34px 42px 12px 42px;">
+
+                                <div class="mobile-text" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:16px;
+          line-height:24px;
+          font-weight:400;
+          font-style:italic;
+          color:#4b5563;
           text-align:center;">
-                                    azm Academy is pleased to invite you to attend its First Graduation Ceremony,
-                                    celebrating the Academy's first cohort of graduates across specialized applied
-                                    training programs.
+                                    Find attached pdf for details
 
                                 </div>
 
@@ -143,6 +252,23 @@
                         </tr>
 
                         <!-- BUTTON -->
+                        <tr>
+                            <td align="center" class="mobile-padding" style="padding:0 42px 12px 42px;">
+
+                                <div class="mobile-text" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:18px;
+          line-height:26px;
+          font-weight:bold;
+          color:#1f2937;
+          text-align:center;">
+                                    Kindly RSVP by clicking the button below
+
+                                </div>
+
+                            </td>
+                        </tr>
+
                         <tr>
                             <td align="center" class="mobile-padding" style="padding:0 42px 34px 42px;">
 
@@ -152,7 +278,7 @@
                                     <tr>
                                         <td bgcolor="#025d4d" align="center" style="border-radius:6px;">
 
-                                            <a id="invitationActionLink" href="{{InvitationLink}}" target="_blank" style="
+                                            <a id="rsvpActionLink" href="{{InvitationLink}}" target="_blank" style="
                 font-family:Arial, Helvetica, sans-serif;
                 font-size:20px;
                 line-height:20px;
@@ -162,7 +288,7 @@
                 padding:16px 30px;
                 display:inline-block;">
 
-                                                View Invitation
+                                                RSVP
 
                                             </a>
 
@@ -170,6 +296,81 @@
                                     </tr>
 
                                 </table>
+
+                            </td>
+                        </tr>
+
+                        <!-- LOCATION TEXT -->
+                        <tr>
+                            <td align="center" class="mobile-padding" style="padding:0 42px 12px 42px;">
+
+                                <div class="mobile-text" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:18px;
+          line-height:26px;
+          font-weight:bold;
+          color:#1f2937;
+          text-align:center;">
+                                    Need directions? Tap below to view the venue location
+
+                                </div>
+
+                            </td>
+                        </tr>
+
+                        <!-- LOCATION BUTTON -->
+                        <tr>
+                            <td align="center" class="mobile-padding" style="padding:0 42px 34px 42px;">
+
+                                <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                                    class="mobile-button">
+
+                                    <tr>
+                                        <td bgcolor="#025d4d" align="center" style="border-radius:6px;">
+
+                                            <a href="https://maps.app.goo.gl/ruBz3TR22Bp168FB6" target="_blank" style="
+                font-family:Arial, Helvetica, sans-serif;
+                font-size:20px;
+                line-height:20px;
+                font-weight:bold;
+                color:#ffffff;
+                text-decoration:none;
+                padding:16px 30px;
+                display:inline-block;">
+
+                                                View Location
+
+                                            </a>
+
+                                        </td>
+                                    </tr>
+
+                                </table>
+
+                            </td>
+                        </tr>
+
+                        <!-- FOOTER -->
+                        <tr>
+                            <td align="center" bgcolor="#025d4d" class="mobile-padding" style="background:#025d4d; padding:34px 42px;">
+
+                                <div class="mobile-text" id="footerMessage" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:18px;
+          line-height:28px;
+          font-weight:400;
+          color:#ffffff;
+          text-align:center;
+          display:{{FooterMessageDisplay}};">{{FooterMessage}}</div>
+
+                                <div class="mobile-text" id="footerSignoff" style="
+          font-family:Arial, Helvetica, sans-serif;
+          font-size:18px;
+          line-height:28px;
+          font-weight:bold;
+          color:#ffffff;
+          text-align:center;
+          padding-top:18px;">{{FooterSignoff}}</div>
 
                             </td>
                         </tr>
@@ -194,12 +395,50 @@
                 return "";
             }
 
+            function resolveTier(userType) {
+                var key = (userType || "").toString().trim().toLowerCase().replace(/\s+/g, "");
+                if (key === "tier1" || key === "deputygovernor" || key === "deputygoverner") return "tier1";
+                if (key === "tier2" || key === "guest") return "tier2";
+                if (key === "tier3" || key === "students" || key === "student") return "tier3";
+                return "tier2";
+            }
+
+            var TIER_CONTENT = {
+                tier1: {
+                    greetingPrefix: "",
+                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the academy\u2019s first cohort of graduates across specialized applied training programs.",
+                    paragraph2: "This milestone ceremony recognizes Saudi talent prepared through hands-on, employer-aligned learning pathways that support workforce readiness across key sectors, including health, safety and environment, facility management, and construction site engineering.",
+                    paragraph3: "Your gracious presence would bring great honour to this milestone occasion and to the graduates whose achievement reflects the academy\u2019s commitment to national talent development and workforce readiness.",
+                    footerMessage: "",
+                    footerSignoff: "With highest respect and appreciation,<br>Yazeed Al Rasheed<br>Managing Director at azm Academy"
+                },
+                tier2: {
+                    greetingPrefix: "Dear ",
+                    paragraph1: "azm Academy is pleased to invite you to attend its First Graduation Ceremony, celebrating the academy\u2019s first cohort of graduates across specialized applied training programs.",
+                    paragraph2: "This milestone ceremony recognizes Saudi talent prepared through hands-on, employer-aligned learning pathways that support workforce readiness across key sectors, including health, safety and environment, facility management, and construction site engineering.",
+                    paragraph3: "We would be honoured by your presence as we celebrate the graduates, partners, and stakeholders contributing to the development of the Kingdom\u2019s future-ready workforce.",
+                    footerMessage: "We look forward to welcoming you.",
+                    footerSignoff: "Warm Regards,<br>Corporate Communications Department<br>azm Academy"
+                },
+                tier3: {
+                    greetingPrefix: "Congratulations ",
+                    paragraph1: "azm Academy is honoured to invite you to attend its First Graduation Ceremony, during which you will be recognized for your valued contribution to the academy\u2019s mission of preparing technically skilled Saudi talent for the Kingdom\u2019s evolving workforce needs.",
+                    paragraph2: "This inaugural ceremony celebrates the academy\u2019s first cohort of graduates across applied training programs designed to strengthen workplace readiness, technical capability, and alignment between learners and employers.",
+                    paragraph3: "Your recognition reflects the important role of committed partners and contributors in advancing national capability development and supporting meaningful employment pathways for Saudi talent.",
+                    footerMessage: "We look forward to welcoming and honoring you at this milestone occasion.",
+                    footerSignoff: "Warm Regards,<br>Corporate Communications Department<br>azm Academy"
+                }
+            };
+
             var guestNameRaw = getQueryValue(["GuestName", "guestName", "guestname", "name"]);
             var guestName = guestNameRaw ? guestNameRaw.trim() : "";
             var guestNameEl = document.getElementById("guestNameText");
             var invitationLinkRaw = getQueryValue(["InvitationLink", "invitationLink", "urlLink", "rsvpLink", "rsvp"]);
             var invitationLink = invitationLinkRaw ? invitationLinkRaw.trim() : "";
-            var invitationActionEl = document.getElementById("invitationActionLink");
+            var uniqueIdRaw = getQueryValue(["uniqueId", "UniqueId", "uniqueid"]);
+            var uniqueId = uniqueIdRaw ? uniqueIdRaw.trim() : "";
+            var userTypeRaw = getQueryValue(["UserType", "userType", "usertype", "invitetype", "type"]);
+            var rsvpActionEl = document.getElementById("rsvpActionLink");
 
             if (guestNameEl && guestName) {
                 guestNameEl.textContent = guestName;
@@ -207,12 +446,34 @@
                 guestNameEl.textContent = "Guest";
             }
 
-            if (!invitationActionEl) return;
+            var tierContent = TIER_CONTENT[resolveTier(userTypeRaw)];
 
-            if (invitationLink) {
-                invitationActionEl.setAttribute("href", invitationLink);
-            } else if (invitationActionEl.getAttribute("href") === "{{InvitationLink}}") {
-                invitationActionEl.setAttribute("href", "#");
+            var greetingPrefixEl = document.getElementById("greetingPrefix");
+            var paragraph1El = document.getElementById("paragraph1Text");
+            var paragraph2El = document.getElementById("paragraph2Text");
+            var paragraph3El = document.getElementById("paragraph3Text");
+            var footerMessageEl = document.getElementById("footerMessage");
+            var footerSignoffEl = document.getElementById("footerSignoff");
+
+            if (greetingPrefixEl) greetingPrefixEl.textContent = tierContent.greetingPrefix;
+            if (paragraph1El) paragraph1El.textContent = tierContent.paragraph1;
+            if (paragraph2El) paragraph2El.textContent = tierContent.paragraph2;
+            if (paragraph3El) paragraph3El.textContent = tierContent.paragraph3;
+            if (footerMessageEl) {
+                footerMessageEl.innerHTML = tierContent.footerMessage;
+                footerMessageEl.style.display = tierContent.footerMessage ? "" : "none";
+            }
+            if (footerSignoffEl) footerSignoffEl.innerHTML = tierContent.footerSignoff;
+
+            if (!rsvpActionEl) return;
+
+            // Same RSVP form link used by the RSVP button in the tier (main-tierX.html) pages.
+            if (uniqueId) {
+                rsvpActionEl.setAttribute("href", "https://azm-edu-invitation.com/azm/azm-RSPV.html?uniqueId=" + encodeURIComponent(uniqueId));
+            } else if (invitationLink) {
+                rsvpActionEl.setAttribute("href", invitationLink);
+            } else if (rsvpActionEl.getAttribute("href") === "{{InvitationLink}}") {
+                rsvpActionEl.setAttribute("href", "#");
             }
         })();
     </script>

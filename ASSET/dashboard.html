@@ -1903,10 +1903,11 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const mappedData = data.map(u => {
           const tier = resolveUserTier(u.userType);
           const encodedName = encodeURIComponent(u.fullName || '');
+          const encodedUserType = encodeURIComponent(getUserTypeLabel(u.userType));
           const hashKey = u.hashKey || '';
           const uniqueId = u.uniqueId || '';
           const rsvpUrl = `https://azm-edu-invitation.com/azm/${tier}/main-${tier}.html?name=${encodedName}&hashkey=${encodeURIComponent(hashKey)}&uniqueId=${encodeURIComponent(uniqueId)}`;
-          const emailInviteUrl = `https://azm-edu-invitation.com/azm/viewInvitation.html?GuestName=${encodedName}&InvitationLink=${encodeURIComponent(rsvpUrl)}&uniqueId=${encodeURIComponent(uniqueId)}`;
+          const emailInviteUrl = `https://azm-edu-invitation.com/azm/viewInvitation.html?GuestName=${encodedName}&InvitationLink=${encodeURIComponent(rsvpUrl)}&uniqueId=${encodeURIComponent(uniqueId)}&UserType=${encodedUserType}`;
           return {
             uniqueId: uniqueId,
             userName: u.fullName,
