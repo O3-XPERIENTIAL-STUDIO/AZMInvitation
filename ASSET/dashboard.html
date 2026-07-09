@@ -1170,6 +1170,60 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .invite-queue-banner {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: rgba(91, 110, 245, 0.12);
+      border: 1px solid rgba(91, 110, 245, 0.35);
+      border-radius: var(--radius-sm);
+      animation: fadeUp 0.25s ease;
+    }
+
+    .invite-queue-banner.visible {
+      display: block;
+    }
+
+    .invite-queue-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.03em;
+    }
+
+    .invite-queue-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      font-size: 12px;
+    }
+
+    .invite-queue-stat {
+      color: var(--text-muted);
+    }
+
+    .invite-queue-stat.processing {
+      color: #f5c842;
+    }
+
+    .invite-queue-stat.queued {
+      color: #8eb4ff;
+    }
+
+    .invite-queue-stat.completed {
+      color: #34c98a;
+    }
+
+    .invite-queue-stat.failed {
+      color: #ff6b6b;
+    }
+
+    .copy-btn.mail-failed {
+      border-color: rgba(255, 107, 107, 0.45);
+      color: #ff8a8a;
+    }
   </style>
 </head>
 
@@ -1195,6 +1249,8 @@
         </div>
       </div>
     </div>
+
+    <div id="inviteQueueBanner" class="invite-queue-banner" aria-live="polite"></div>
 
     <!-- STATS GRID -->
     <div class="stats-grid">
@@ -1322,8 +1378,16 @@
   <script>
     const baseURL = "https://udcwebapi2025-avdxdce9gngffkgx.uaenorth-01.azurewebsites.net";
     const inviteEmailEndpoint = `${baseURL}/api/Users/send-invitation-email`;
+    const inviteQueueStatusEndpoint = `${baseURL}/api/Users/invitation-email-queue-status`;
+    const inviteJobStatusEndpoint = `${baseURL}/api/Users/invitation-email-status`;
+    const INVITE_QUEUE_POLL_MS = 30000;
+
     let users = [];
     let filteredUsers = [];
+    const inviteJobMap = {};
+    const inviteEnqueueQueue = [];
+    let inviteEnqueueProcessing = false;
+    let inviteQueuePollTimer = null;
 
     function setImportStatus(msg) {
       const el = document.getElementById('importStatus');
@@ -1423,21 +1487,247 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     }
 
+    function pickApi(obj, ...keys) {
+      if (!obj) return undefined;
+      for (const key of keys) {
+        if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+      }
+      return undefined;
+    }
+
+    function normalizeJobStatus(status) {
+      return (status || '').toString().trim();
+    }
+
+    function isActiveInviteJobStatus(status) {
+      const value = normalizeJobStatus(status);
+      return value === 'Queued' || value === 'Processing';
+    }
+
+    function getInviteJobByUser(user) {
+      const emailKey = (user && user.emailId ? user.emailId : '').toString().trim().toLowerCase();
+      if (!emailKey) return null;
+      return inviteJobMap[emailKey] || null;
+    }
+
+    function setInviteJob(emailId, jobData) {
+      const key = (emailId || '').toString().trim().toLowerCase();
+      if (!key) return;
+      inviteJobMap[key] = Object.assign({}, inviteJobMap[key] || {}, jobData || {}, { emailId: key });
+    }
+
+    function hasActiveInviteJobs() {
+      return Object.values(inviteJobMap).some(job => isActiveInviteJobStatus(job.status));
+    }
+
+    function getSendMailButtonState(user) {
+      if (isInviteMailAlreadySent(user)) {
+        const sentAt = getInviteMailSentAt(user);
+        return {
+          label: 'Already Sent',
+          disabled: true,
+          failed: false,
+          title: sentAt ? `Sent on ${new Date(sentAt).toLocaleString()}` : 'Invitation email already sent'
+        };
+      }
+
+      const job = getInviteJobByUser(user);
+      if (job) {
+        const status = normalizeJobStatus(job.status);
+        if (status === 'Queued') {
+          const position = job.queuePosition ? ` (#${job.queuePosition})` : '';
+          return {
+            label: `Queued${position}`,
+            disabled: true,
+            failed: false,
+            title: job.message || 'Waiting in email queue'
+          };
+        }
+        if (status === 'Processing') {
+          return {
+            label: 'Sending...',
+            disabled: true,
+            failed: false,
+            title: job.message || 'Sending invitation email'
+          };
+        }
+        if (status === 'Completed' || (status === 'Skipped' && job.inviteSend)) {
+          return {
+            label: 'Already Sent',
+            disabled: true,
+            failed: false,
+            title: job.message || 'Invitation email already sent'
+          };
+        }
+        if (status === 'Failed') {
+          return {
+            label: 'Retry Send',
+            disabled: false,
+            failed: true,
+            title: job.error || job.message || 'Send failed — click to retry'
+          };
+        }
+      }
+
+      return {
+        label: 'Send Mail',
+        disabled: false,
+        failed: false,
+        title: 'Send invitation email'
+      };
+    }
+
+    function updateInviteQueueBanner(data) {
+      const el = document.getElementById('inviteQueueBanner');
+      if (!el) return;
+
+      const queued = Number(pickApi(data, 'queuedCount', 'QueuedCount') || 0);
+      const processing = Number(pickApi(data, 'processingCount', 'ProcessingCount') || 0);
+      const maxPerMin = Number(pickApi(data, 'maxEmailsPerMinute', 'MaxEmailsPerMinute') || 10);
+      const sentLastMin = Number(pickApi(data, 'sentLastMinute', 'SentLastMinute') || 0);
+      const completed = Number(pickApi(data, 'completedCount', 'CompletedCount') || 0);
+      const failed = Number(pickApi(data, 'failedCount', 'FailedCount') || 0);
+      const active = queued + processing;
+
+      if (active === 0 && completed === 0 && failed === 0) {
+        el.classList.remove('visible');
+        el.innerHTML = '';
+        return;
+      }
+
+      el.classList.add('visible');
+      el.innerHTML = `
+        <div class="invite-queue-title">Email Send Queue</div>
+        <div class="invite-queue-stats">
+          <span class="invite-queue-stat processing">${processing} sending</span>
+          <span class="invite-queue-stat queued">${queued} queued</span>
+          <span class="invite-queue-stat">Rate: ${sentLastMin}/${maxPerMin} per min</span>
+          <span class="invite-queue-stat completed">${completed} sent</span>
+          ${failed ? `<span class="invite-queue-stat failed">${failed} failed</span>` : ''}
+        </div>`;
+    }
+
+    function syncInviteJobsFromOverview(data) {
+      const jobs = pickApi(data, 'jobs', 'Jobs') || [];
+      let shouldRender = false;
+
+      jobs.forEach(job => {
+        const emailId = (pickApi(job, 'emailId', 'EmailId') || '').toString().trim().toLowerCase();
+        if (!emailId) return;
+
+        const status = normalizeJobStatus(pickApi(job, 'status', 'Status'));
+        const previous = inviteJobMap[emailId];
+        const inviteSend = !!pickApi(job, 'inviteSend', 'InviteSend');
+
+        setInviteJob(emailId, {
+          jobId: pickApi(job, 'jobId', 'JobId') || '',
+          status: status,
+          queuePosition: pickApi(job, 'queuePosition', 'QueuePosition') || 0,
+          message: pickApi(job, 'message', 'Message') || '',
+          error: pickApi(job, 'error', 'Error') || '',
+          inviteSend: inviteSend,
+          fullName: pickApi(job, 'fullName', 'FullName') || ''
+        });
+
+        if (!previous || previous.status !== status) shouldRender = true;
+
+        const user = users.find(u => (u.emailId || '').toString().trim().toLowerCase() === emailId);
+        if (user && (status === 'Completed' || (status === 'Skipped' && inviteSend))) {
+          if (!user.inviteSend) {
+            user.inviteSend = true;
+            markInviteMailSent(user);
+            shouldRender = true;
+          }
+        }
+      });
+
+      if (shouldRender) renderUsers();
+    }
+
+    async function refreshInviteQueueStatus() {
+      try {
+        const response = await fetch(inviteQueueStatusEndpoint);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        updateInviteQueueBanner(data);
+        syncInviteJobsFromOverview(data);
+
+        const queued = Number(pickApi(data, 'queuedCount', 'QueuedCount') || 0);
+        const processing = Number(pickApi(data, 'processingCount', 'ProcessingCount') || 0);
+        if (queued + processing > 0 || hasActiveInviteJobs()) {
+          if (!inviteQueuePollTimer) {
+            inviteQueuePollTimer = setInterval(refreshInviteQueueStatus, INVITE_QUEUE_POLL_MS);
+          }
+        } else {
+          stopInviteQueuePolling();
+        }
+      } catch (e) { }
+    }
+
+    function startInviteQueuePolling() {
+      refreshInviteQueueStatus();
+    }
+
+    function stopInviteQueuePolling() {
+      if (!inviteQueuePollTimer) return;
+      clearInterval(inviteQueuePollTimer);
+      inviteQueuePollTimer = null;
+    }
+
     async function sendInvitationEmail(payload) {
       const response = await fetch(inviteEmailEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (e) { }
+
       if (!response.ok) {
         let msg = `${response.status} ${response.statusText}`;
-        try {
-          const err = await response.json();
-          if (err && (err.message || err.error)) msg = err.message || err.error;
-        } catch (e) { }
+        if (data) msg = pickApi(data, 'message', 'Message', 'error', 'Error') || msg;
         throw new Error(msg);
       }
-      return true;
+
+      return {
+        success: !!pickApi(data, 'success', 'Success'),
+        jobId: pickApi(data, 'jobId', 'JobId') || '',
+        status: normalizeJobStatus(pickApi(data, 'status', 'Status')),
+        emailId: pickApi(data, 'emailId', 'EmailId') || payload.emailId,
+        queuePosition: Number(pickApi(data, 'queuePosition', 'QueuePosition') || 0),
+        message: pickApi(data, 'message', 'Message') || '',
+        inviteSend: !!pickApi(data, 'inviteSend', 'InviteSend'),
+        viewInvitationLink: pickApi(data, 'viewInvitationLink', 'ViewInvitationLink') || ''
+      };
+    }
+
+    function enqueueInvitationRequest(payload) {
+      return new Promise((resolve, reject) => {
+        inviteEnqueueQueue.push({ payload: payload, resolve: resolve, reject: reject });
+        processInviteEnqueueQueue();
+      });
+    }
+
+    async function processInviteEnqueueQueue() {
+      if (inviteEnqueueProcessing) return;
+      inviteEnqueueProcessing = true;
+
+      while (inviteEnqueueQueue.length > 0) {
+        const item = inviteEnqueueQueue.shift();
+        try {
+          const result = await sendInvitationEmail(item.payload);
+          item.resolve(result);
+        } catch (err) {
+          item.reject(err);
+        }
+        await new Promise(r => setTimeout(r, 120));
+      }
+
+      inviteEnqueueProcessing = false;
     }
 
     const inviteMailStatusKey = 'azmInviteMailStatusMap';
@@ -1500,6 +1790,11 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         alert('User has no email ID.');
         return;
       }
+
+      const existingJob = getInviteJobByUser(user);
+      if (existingJob && isActiveInviteJobStatus(existingJob.status)) {
+        return;
+      }
       if (isInviteMailAlreadySent(user)) {
         alert('Invitation email already sent.');
         return;
@@ -1509,24 +1804,37 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       try {
         if (btn) {
           btn.disabled = true;
-          btn.textContent = 'Sending...';
+          btn.textContent = 'Queuing...';
         }
 
-        await sendInvitationEmail({
+        const result = await enqueueInvitationRequest({
           fullName: user.userName || '',
           emailId: user.emailId || '',
           userType: user.inviteType || ''
         });
 
-        markInviteMailSent(user);
-        user.inviteSend = true;
+        setInviteJob(user.emailId, {
+          jobId: result.jobId,
+          status: result.status,
+          queuePosition: result.queuePosition,
+          message: result.message,
+          inviteSend: result.inviteSend,
+          fullName: user.userName || ''
+        });
+
+        if (result.status === 'Skipped' && result.inviteSend) {
+          markInviteMailSent(user);
+          user.inviteSend = true;
+        }
+
         renderUsers();
+        startInviteQueuePolling();
       } catch (e) {
         if (btn) {
           btn.disabled = false;
           btn.textContent = originalText || 'Send Mail';
         }
-        alert(`Failed to send invitation email: ${e.message}`);
+        alert(`Failed to queue invitation email: ${e.message}`);
       }
     }
 
@@ -1686,12 +1994,10 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const rsvpLink = (u.urlLink || '').toString().trim();
         const emailInviteLink = (u.emailInviteLink || '').toString().trim();
         const userMailStatusKey = encodeURIComponent(getUserMailStatusKey(u));
-        const alreadySent = isInviteMailAlreadySent(u);
-        const sentAt = getInviteMailSentAt(u);
-        const sendMailButtonLabel = alreadySent ? 'Already Sent' : 'Send Mail';
-        const sendMailButtonTitle = alreadySent && sentAt
-          ? `Sent on ${new Date(sentAt).toLocaleString()}`
-          : 'Send invitation email';
+        const mailBtnState = getSendMailButtonState(u);
+        const sendMailButtonLabel = mailBtnState.label;
+        const sendMailButtonTitle = mailBtnState.title;
+        const sendMailButtonClass = mailBtnState.failed ? 'copy-btn mail-failed' : 'copy-btn';
 
         // Check-in HTML
         let checkinHTML = '<span style="color:var(--text-muted);font-style:italic">No check-ins recorded</span>';
@@ -1754,7 +2060,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
               <div class="url-text" title="${emailInviteLink || ''}">${emailInviteLink || 'No email invite link available'}</div>
               <button class="copy-btn" onclick="copyURL(this, '${emailInviteLink}')">Copy</button>
               <button class="copy-btn" onclick="openRSVP('${rsvpLink}')">View Invitation</button>
-              <button class="copy-btn" title="${sendMailButtonTitle}" onclick="sendInviteForUser(this, '${userMailStatusKey}')" ${alreadySent ? 'disabled' : ''}>${sendMailButtonLabel}</button>
+              <button class="${sendMailButtonClass}" title="${sendMailButtonTitle}" onclick="sendInviteForUser(this, '${userMailStatusKey}')" ${mailBtnState.disabled ? 'disabled' : ''}>${sendMailButtonLabel}</button>
             </div>
 
             <div class="checkin-row">
@@ -1981,6 +2287,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
     // Kick off
     fetchUsers(false);
     startAutoRefresh();
+    refreshInviteQueueStatus();
   </script>
 </body>
 
