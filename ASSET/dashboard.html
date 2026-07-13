@@ -9,7 +9,7 @@
     href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <style>
     *,
     *::before,
@@ -1224,6 +1224,15 @@
       border-color: rgba(255, 107, 107, 0.45);
       color: #ff8a8a;
     }
+
+    .copy-btn.mail-reminder {
+      border-color: rgba(217, 161, 91, 0.45);
+      color: #e8bc7a;
+    }
+
+    .copy-btn.mail-reminder:hover:not(:disabled) {
+      background: rgba(217, 161, 91, 0.12);
+    }
   </style>
 </head>
 
@@ -1361,7 +1370,7 @@
           <option value="accepted">Accepted</option>
           <option value="declined">Declined</option>
         </select>
-        <button class="btn btn-success" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn btn-success" onclick="exportCSV()">⬇ Export Excel</button>
       </div>
     </div>
 
@@ -1381,6 +1390,7 @@
     const inviteQueueStatusEndpoint = `${baseURL}/api/Users/invitation-email-queue-status`;
     const inviteJobStatusEndpoint = `${baseURL}/api/Users/invitation-email-status`;
     const INVITE_QUEUE_POLL_MS = 30000;
+    const REMINDER_EMAIL_SUBJECT = 'A kind reminder to register for the azm Graduation Ceremony 2026.';
 
     let users = [];
     let filteredUsers = [];
@@ -1521,25 +1531,27 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
     }
 
     function getSendMailButtonState(user) {
-      if (isInviteMailAlreadySent(user)) {
-        const sentAt = getInviteMailSentAt(user);
-        return {
-          label: 'Already Sent',
-          disabled: true,
-          failed: false,
-          title: sentAt ? `Sent on ${new Date(sentAt).toLocaleString()}` : 'Invitation email already sent'
-        };
+      const job = getInviteJobByUser(user);
+
+      if (job && job.isReminder) {
+        return getReminderJobButtonState(job, user);
       }
 
-      const job = getInviteJobByUser(user);
       if (job) {
         const status = normalizeJobStatus(job.status);
+
+        // Stale invite job state should not block reminder for invited pending guests
+        if (!job.isReminder && canSendReminder(user) && !isActiveInviteJobStatus(status)) {
+          return buildSendReminderButtonState(user);
+        }
+
         if (status === 'Queued') {
           const position = job.queuePosition ? ` (#${job.queuePosition})` : '';
           return {
             label: `Queued${position}`,
             disabled: true,
             failed: false,
+            isReminder: false,
             title: job.message || 'Waiting in email queue'
           };
         }
@@ -1548,15 +1560,8 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
             label: 'Sending...',
             disabled: true,
             failed: false,
+            isReminder: false,
             title: job.message || 'Sending invitation email'
-          };
-        }
-        if (status === 'Completed' || (status === 'Skipped' && job.inviteSend)) {
-          return {
-            label: 'Already Sent',
-            disabled: true,
-            failed: false,
-            title: job.message || 'Invitation email already sent'
           };
         }
         if (status === 'Failed') {
@@ -1564,17 +1569,158 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
             label: 'Retry Send',
             disabled: false,
             failed: true,
+            isReminder: false,
             title: job.error || job.message || 'Send failed — click to retry'
           };
         }
+        if (status === 'Completed' || (status === 'Skipped' && job.inviteSend)) {
+          if (canSendReminder(user)) {
+            return buildSendReminderButtonState(user);
+          }
+          return buildAlreadySentButtonState(user);
+        }
+      }
+
+      if (canSendReminder(user)) {
+        return buildSendReminderButtonState(user);
+      }
+
+      if (isInviteMailAlreadySent(user)) {
+        return buildAlreadySentButtonState(user);
       }
 
       return {
         label: 'Send Mail',
         disabled: false,
         failed: false,
+        isReminder: false,
         title: 'Send invitation email'
       };
+    }
+
+    function getReminderJobButtonState(job, user) {
+      const status = normalizeJobStatus(job.status);
+
+      if (!canSendReminder(user) && !isActiveInviteJobStatus(status)) {
+        return buildAlreadySentButtonState(user);
+      }
+
+      if (status === 'Queued') {
+        const position = job.queuePosition ? ` (#${job.queuePosition})` : '';
+        return {
+          label: `Reminder queued${position}`,
+          disabled: true,
+          failed: false,
+          isReminder: true,
+          title: job.message || 'Reminder waiting in email queue'
+        };
+      }
+      if (status === 'Processing') {
+        return {
+          label: 'Sending reminder...',
+          disabled: true,
+          failed: false,
+          isReminder: true,
+          title: job.message || 'Sending reminder email'
+        };
+      }
+      if (status === 'Failed' || status === 'Skipped') {
+        return {
+          label: 'Retry Reminder',
+          disabled: false,
+          failed: true,
+          isReminder: true,
+          title: job.error || job.message || 'Reminder failed — click to retry'
+        };
+      }
+
+      return buildSendReminderButtonState(user);
+    }
+
+    function buildAlreadySentButtonState(user) {
+      const statusRaw = normalizeStatus(user && user.status ? user.status : 'pending');
+      const sentAt = getInviteMailSentAt(user) || getReminderSentAt(user);
+      let title = 'Invitation email already sent';
+      if (statusRaw === 'accepted') {
+        title = sentAt
+          ? `Guest accepted — invitation already sent (${new Date(sentAt).toLocaleString()})`
+          : 'Guest accepted — invitation already sent';
+      } else if (statusRaw === 'declined') {
+        title = 'Guest declined — no further emails needed';
+      } else if (sentAt) {
+        title = `Sent on ${new Date(sentAt).toLocaleString()}`;
+      }
+      return {
+        label: 'Already Sent',
+        disabled: true,
+        failed: false,
+        isReminder: false,
+        title: title
+      };
+    }
+
+    function formatSendReminderLabel(reminderCount) {
+      const count = Number(reminderCount || 0);
+      return count > 0 ? `Send Reminder - ${count}` : 'Send Reminder';
+    }
+
+    function buildSendReminderButtonState(user) {
+      const sentAt = getReminderSentAt(user);
+      const dbCount = Number(user && user.reminderCount ? user.reminderCount : 0);
+      const countHint = dbCount > 0 ? `\nReminders sent: ${dbCount}` : '';
+      return {
+        label: formatSendReminderLabel(dbCount),
+        disabled: false,
+        failed: false,
+        isReminder: true,
+        title: sentAt
+          ? `Queue reminder email.\nSubject: ${REMINDER_EMAIL_SUBJECT}${countHint}\nLast reminder queued: ${new Date(sentAt).toLocaleString()}`
+          : `Queue reminder email.\nSubject: ${REMINDER_EMAIL_SUBJECT}${countHint}`
+      };
+    }
+
+    function canSendReminder(user) {
+      if (!user) return false;
+      if (!(user.inviteSend || user.InviteSend)) return false;
+      if (normalizeStatus(user.status || 'pending') !== 'pending') return false;
+      return !!(user.emailId || '').toString().trim();
+    }
+
+    function buildInviteEmailPayload(user, isReminder) {
+      return {
+        fullName: user.userName || '',
+        emailId: user.emailId || '',
+        userType: user.inviteType || '',
+        uniqueId: user.uniqueId || '',
+        isReminder: !!isReminder
+      };
+    }
+
+    function findSendMailButton(userKey) {
+      const key = (userKey || '').toString().trim().toLowerCase();
+      if (!key) return null;
+      const buttons = document.querySelectorAll('button[data-mail-key]');
+      for (const btn of buttons) {
+        if ((btn.getAttribute('data-mail-key') || '').toLowerCase() === key) return btn;
+      }
+      return null;
+    }
+
+    function applySendMailButtonState(btn, state) {
+      if (!btn || !state) return;
+      btn.textContent = state.label;
+      btn.title = state.title || '';
+      btn.disabled = !!state.disabled;
+      btn.classList.toggle('mail-failed', !!state.failed);
+      btn.classList.toggle('mail-reminder', !!state.isReminder);
+      if (!btn.classList.contains('copy-btn')) btn.classList.add('copy-btn');
+    }
+
+    function updateSendMailButtonForUser(user) {
+      if (!user) return;
+      const btn = findSendMailButton(getUserMailStatusKey(user));
+      if (!btn) return;
+      applySendMailButtonState(btn, getSendMailButtonState(user));
     }
 
     function updateInviteQueueBanner(data) {
@@ -1609,7 +1755,6 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
 
     function syncInviteJobsFromOverview(data) {
       const jobs = pickApi(data, 'jobs', 'Jobs') || [];
-      let shouldRender = false;
 
       jobs.forEach(job => {
         const emailId = (pickApi(job, 'emailId', 'EmailId') || '').toString().trim().toLowerCase();
@@ -1618,30 +1763,44 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const status = normalizeJobStatus(pickApi(job, 'status', 'Status'));
         const previous = inviteJobMap[emailId];
         const inviteSend = !!pickApi(job, 'inviteSend', 'InviteSend');
+        const queuePosition = Number(pickApi(job, 'queuePosition', 'QueuePosition') || 0);
+        const apiIsReminder = pickApi(job, 'isReminder', 'IsReminder');
+        const isReminder = apiIsReminder === true || apiIsReminder === 'true'
+          || !!(previous && previous.isReminder);
 
         setInviteJob(emailId, {
           jobId: pickApi(job, 'jobId', 'JobId') || '',
           status: status,
-          queuePosition: pickApi(job, 'queuePosition', 'QueuePosition') || 0,
+          queuePosition: queuePosition,
           message: pickApi(job, 'message', 'Message') || '',
           error: pickApi(job, 'error', 'Error') || '',
           inviteSend: inviteSend,
-          fullName: pickApi(job, 'fullName', 'FullName') || ''
+          fullName: pickApi(job, 'fullName', 'FullName') || '',
+          isReminder: isReminder
         });
 
-        if (!previous || previous.status !== status) shouldRender = true;
-
         const user = users.find(u => (u.emailId || '').toString().trim().toLowerCase() === emailId);
-        if (user && (status === 'Completed' || (status === 'Skipped' && inviteSend))) {
+        if (user && status === 'Completed') {
+          if (isReminder) {
+            markReminderSent(user);
+            user.reminderCount = Number(user.reminderCount || 0) + 1;
+          } else if (!user.inviteSend) {
+            user.inviteSend = true;
+            markInviteMailSent(user);
+          }
+        } else if (user && status === 'Skipped' && inviteSend && !isReminder) {
           if (!user.inviteSend) {
             user.inviteSend = true;
             markInviteMailSent(user);
-            shouldRender = true;
           }
         }
-      });
 
-      if (shouldRender) renderUsers();
+        const statusChanged = !previous || previous.status !== status;
+        const positionChanged = !previous || previous.queuePosition !== queuePosition;
+        if (user && (statusChanged || positionChanged)) {
+          updateSendMailButtonForUser(user);
+        }
+      });
     }
 
     async function refreshInviteQueueStatus() {
@@ -1656,6 +1815,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const queued = Number(pickApi(data, 'queuedCount', 'QueuedCount') || 0);
         const processing = Number(pickApi(data, 'processingCount', 'ProcessingCount') || 0);
         if (queued + processing > 0 || hasActiveInviteJobs()) {
+          setEmailQueueActive(true);
           if (!inviteQueuePollTimer) {
             inviteQueuePollTimer = setInterval(refreshInviteQueueStatus, INVITE_QUEUE_POLL_MS);
           }
@@ -1673,6 +1833,14 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       if (!inviteQueuePollTimer) return;
       clearInterval(inviteQueuePollTimer);
       inviteQueuePollTimer = null;
+      setEmailQueueActive(false);
+      fetchUsers(true);
+    }
+
+    let emailQueueActive = false;
+
+    function setEmailQueueActive(active) {
+      emailQueueActive = !!active;
     }
 
     async function sendInvitationEmail(payload) {
@@ -1752,11 +1920,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
     }
 
     function isInviteMailAlreadySent(user) {
-      if (user && user.inviteSend) return true;
-      const key = getUserMailStatusKey(user);
-      if (!key) return false;
-      const map = getInviteMailStatusMap();
-      return !!(map[key] && map[key].sent);
+      return !!(user && (user.inviteSend || user.InviteSend));
     }
 
     function markInviteMailSent(user) {
@@ -1779,39 +1943,71 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       return map[key] && map[key].sentAt ? map[key].sentAt : '';
     }
 
-    async function sendInviteForUser(btn, encodedUserKey) {
-      const userKey = decodeURIComponent(encodedUserKey || '');
-      const user = users.find(u => getUserMailStatusKey(u) === userKey);
-      if (!user) {
-        alert('User not found.');
-        return;
+    const inviteReminderStatusKey = 'azmInviteReminderStatusMap';
+
+    function getReminderStatusMap() {
+      try {
+        return JSON.parse(localStorage.getItem(inviteReminderStatusKey) || '{}') || {};
+      } catch (e) {
+        return {};
       }
-      if (!user.emailId) {
-        alert('User has no email ID.');
-        return;
-      }
+    }
+
+    function saveReminderStatusMap(map) {
+      localStorage.setItem(inviteReminderStatusKey, JSON.stringify(map || {}));
+    }
+
+    function markReminderSent(user) {
+      const key = getUserMailStatusKey(user);
+      if (!key) return;
+      const map = getReminderStatusMap();
+      const previous = map[key] || {};
+      map[key] = {
+        sent: true,
+        sentAt: new Date().toISOString(),
+        count: Number(previous.count || 0) + 1,
+        emailId: (user.emailId || '').toString().trim(),
+        fullName: (user.userName || '').toString().trim()
+      };
+      saveReminderStatusMap(map);
+    }
+
+    function getReminderSentAt(user) {
+      const key = getUserMailStatusKey(user);
+      if (!key) return '';
+      const map = getReminderStatusMap();
+      return map[key] && map[key].sentAt ? map[key].sentAt : '';
+    }
+
+    async function queueInviteEmailForUser(user, options) {
+      const opts = options || {};
+      const isReminder = !!opts.isReminder;
+      const btn = opts.button || null;
+
+      if (!user) throw new Error('User not found.');
+      if (!user.emailId) throw new Error('User has no email ID.');
 
       const existingJob = getInviteJobByUser(user);
       if (existingJob && isActiveInviteJobStatus(existingJob.status)) {
-        return;
+        return existingJob;
       }
-      if (isInviteMailAlreadySent(user)) {
-        alert('Invitation email already sent.');
-        return;
+
+      if (isReminder) {
+        if (!canSendReminder(user)) {
+          throw new Error('This guest is not eligible for a reminder.');
+        }
+      } else if (isInviteMailAlreadySent(user)) {
+        throw new Error('Invitation email already sent.');
       }
 
       const originalText = btn ? btn.textContent : '';
-      try {
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = 'Queuing...';
-        }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = isReminder ? 'Queuing reminder...' : 'Queuing...';
+      }
 
-        const result = await enqueueInvitationRequest({
-          fullName: user.userName || '',
-          emailId: user.emailId || '',
-          userType: user.inviteType || ''
-        });
+      try {
+        const result = await enqueueInvitationRequest(buildInviteEmailPayload(user, isReminder));
 
         setInviteJob(user.emailId, {
           jobId: result.jobId,
@@ -1819,22 +2015,55 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
           queuePosition: result.queuePosition,
           message: result.message,
           inviteSend: result.inviteSend,
-          fullName: user.userName || ''
+          fullName: user.userName || '',
+          isReminder: isReminder
         });
 
-        if (result.status === 'Skipped' && result.inviteSend) {
+        if (!isReminder && result.status === 'Skipped' && result.inviteSend) {
           markInviteMailSent(user);
           user.inviteSend = true;
         }
+        if (isReminder && result.status === 'Completed') {
+          markReminderSent(user);
+          user.reminderCount = Number(user.reminderCount || 0) + 1;
+        }
 
-        renderUsers();
-        startInviteQueuePolling();
+        if (isReminder && result.status === 'Skipped') {
+          updateSendMailButtonForUser(user);
+          throw new Error(result.message || 'Reminder not allowed for this guest.');
+        }
+
+        if (result.status === 'Queued' || result.status === 'Processing' || result.status === 'Completed') {
+          setEmailQueueActive(true);
+          startInviteQueuePolling();
+        }
+
+        updateSendMailButtonForUser(user);
+        return result;
       } catch (e) {
         if (btn) {
           btn.disabled = false;
-          btn.textContent = originalText || 'Send Mail';
+          btn.textContent = originalText || (isReminder ? formatSendReminderLabel(user.reminderCount) : 'Send Mail');
         }
-        alert(`Failed to queue invitation email: ${e.message}`);
+        throw e;
+      }
+    }
+
+    async function sendInviteForUser(btn, encodedUserKey) {
+      const userKey = decodeURIComponent(encodedUserKey || '');
+      const user = users.find(u => getUserMailStatusKey(u) === userKey);
+      if (!user) {
+        alert('User not found.');
+        return;
+      }
+
+      const mailState = getSendMailButtonState(user);
+      const isReminder = !!mailState.isReminder;
+
+      try {
+        await queueInviteEmailForUser(user, { button: btn, isReminder: isReminder });
+      } catch (e) {
+        alert(isReminder ? `Failed to queue reminder: ${e.message}` : `Failed to queue invitation email: ${e.message}`);
       }
     }
 
@@ -1997,7 +2226,11 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
         const mailBtnState = getSendMailButtonState(u);
         const sendMailButtonLabel = mailBtnState.label;
         const sendMailButtonTitle = mailBtnState.title;
-        const sendMailButtonClass = mailBtnState.failed ? 'copy-btn mail-failed' : 'copy-btn';
+        const sendMailButtonClass = [
+          'copy-btn',
+          mailBtnState.failed ? 'mail-failed' : '',
+          mailBtnState.isReminder ? 'mail-reminder' : ''
+        ].filter(Boolean).join(' ');
 
         // Check-in HTML
         let checkinHTML = '<span style="color:var(--text-muted);font-style:italic">No check-ins recorded</span>';
@@ -2060,7 +2293,7 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
               <div class="url-text" title="${emailInviteLink || ''}">${emailInviteLink || 'No email invite link available'}</div>
               <button class="copy-btn" onclick="copyURL(this, '${emailInviteLink}')">Copy</button>
               <button class="copy-btn" onclick="openRSVP('${rsvpLink}')">View Invitation</button>
-              <button class="${sendMailButtonClass}" title="${sendMailButtonTitle}" onclick="sendInviteForUser(this, '${userMailStatusKey}')" ${mailBtnState.disabled ? 'disabled' : ''}>${sendMailButtonLabel}</button>
+              <button class="${sendMailButtonClass}" data-mail-key="${getUserMailStatusKey(u)}" title="${sendMailButtonTitle}" onclick="sendInviteForUser(this, '${userMailStatusKey}')" ${mailBtnState.disabled ? 'disabled' : ''}>${sendMailButtonLabel}</button>
             </div>
 
             <div class="checkin-row">
@@ -2149,25 +2382,140 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
       }
     }
 
-    async function exportCSV() {
+    function getExportTierSortOrder(user) {
+      const tier = resolveUserTier(user.inviteType);
+      if (tier === 'tier2') return 0;
+      if (tier === 'tier3') return 1;
+      if (tier === 'tier1') return 2;
+      return 3;
+    }
+
+    function getExportStatusLabel(user) {
+      const status = normalizeStatus(user.status);
+      if (status === 'accepted') return 'Accepted';
+      if (status === 'declined') return 'Declined';
+      return 'Pending';
+    }
+
+    function sortUsersForExport(list) {
+      return [...list].sort((a, b) => {
+        const tierDiff = getExportTierSortOrder(a) - getExportTierSortOrder(b);
+        if (tierDiff !== 0) return tierDiff;
+        const nameA = (a.userName || '').toString().trim().toLowerCase();
+        const nameB = (b.userName || '').toString().trim().toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    }
+
+    function xlsxBorder(color) {
+      const side = { style: 'thin', color: { rgb: color } };
+      return { top: side, bottom: side, left: side, right: side };
+    }
+
+    function getExportStatusXlsxStyle(label) {
+      if (label === 'Accepted') {
+        return {
+          fill: { patternType: 'solid', fgColor: { rgb: 'E8FAF3' } },
+          font: { bold: true, color: { rgb: '34C98A' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: xlsxBorder('34C98A')
+        };
+      }
+      if (label === 'Declined') {
+        return {
+          fill: { patternType: 'solid', fgColor: { rgb: 'FDECEF' } },
+          font: { bold: true, color: { rgb: 'F0516A' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: xlsxBorder('F0516A')
+        };
+      }
+      return {
+        fill: { patternType: 'solid', fgColor: { rgb: 'FEF6E9' } },
+        font: { bold: true, color: { rgb: 'F0A030' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: xlsxBorder('F0A030')
+      };
+    }
+
+    function buildGuestExportWorkbook(list) {
+      const headers = ['Username', 'EmailId', 'Company', 'Position', 'Status', 'InviteSend'];
+      const rows = sortUsersForExport(list).map(user => [
+        (user.userName || '').toString().trim(),
+        (user.emailId || '').toString().trim(),
+        (user.company || '').toString().trim(),
+        (user.position || '').toString().trim(),
+        getExportStatusLabel(user),
+        isInviteMailAlreadySent(user) ? 'Yes' : 'No'
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const headerStyle = {
+        fill: { patternType: 'solid', fgColor: { rgb: '1C1F3B' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: xlsxBorder('CCCCCC')
+      };
+      const cellStyle = {
+        alignment: { vertical: 'center' },
+        border: xlsxBorder('DDDDDD')
+      };
+
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const headerCell = XLSX.utils.encode_cell({ r: 0, c: c });
+        if (ws[headerCell]) ws[headerCell].s = headerStyle;
+      }
+
+      for (let r = 1; r <= range.e.r; r++) {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r: r, c: c });
+          if (!ws[addr]) continue;
+          if (c === 4) {
+            ws[addr].s = getExportStatusXlsxStyle(ws[addr].v);
+          } else {
+            ws[addr].s = cellStyle;
+          }
+        }
+      }
+
+      ws['!cols'] = [
+        { wch: 28 },
+        { wch: 32 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 14 },
+        { wch: 12 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Guests');
+      return wb;
+    }
+
+    function exportCSV() {
       try {
-        const res = await fetch(`${baseURL}/vip/export-csv`);
-        if (!res.ok) throw new Error(res.statusText);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `vip_export_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-      } catch (e) { alert(`Error exporting CSV: ${e.message}`); }
+        if (!users.length) {
+          alert('No users to export.');
+          return;
+        }
+
+        if (typeof XLSX === 'undefined' || !XLSX.writeFile) {
+          throw new Error('Excel library not loaded.');
+        }
+
+        const wb = buildGuestExportWorkbook(users);
+        XLSX.writeFile(wb, `azm_guests_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      } catch (e) {
+        alert(`Error exporting Excel: ${e.message}`);
+      }
     }
 
     // ── Auto-refresh logic ──────────────────────────
     let lastDataHash = '';
     let refreshInterval = null;
-    let countdown = 30;
+    let countdown = 120;
     let countdownTimer = null;
-    const REFRESH_SECONDS = 30;
+    const REFRESH_SECONDS = 120;
 
     function hashData(data) {
       return JSON.stringify(data);
@@ -2193,6 +2541,8 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
     }
 
     async function fetchUsers(silent = false) {
+      if (silent && emailQueueActive) return;
+
       const badge = document.getElementById('liveBadge');
       const icon = document.getElementById('refreshIcon');
 
@@ -2223,7 +2573,8 @@ Maryam Ali,maryam.ali@example.com,Deputy Governor,Saudi Aramco,Director
             position: u.position || '',
             hashKey: hashKey,
             status: normalizeStatus(u.status || 'pending'),
-            inviteSend: !!u.inviteSend,
+            inviteSend: !!(u.inviteSend || u.InviteSend),
+            reminderCount: Number(u.reminderCount || u.ReminderCount || 0),
             urlLink: rsvpUrl,
             emailInviteLink: emailInviteUrl,
             qrCode: null,
