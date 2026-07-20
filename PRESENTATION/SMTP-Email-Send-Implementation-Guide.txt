@@ -1,0 +1,536 @@
+================================================================================
+INVITATION EMAIL SEND — IMPLEMENTATION GUIDE (FRONTEND + BACKEND)
+Including SMTP requirements
+================================================================================
+Project context : AZM Invitation / RSVP system
+Document purpose: Explain all necessary details to understand or re-implement
+                  email sending (invitation + reminder) across frontend & backend.
+IMPORTANT       : This file is documentation only. No application code was changed.
+
+Last updated    : 2026-07-20
+
+
+--------------------------------------------------------------------------------
+1. HIGH-LEVEL ARCHITECTURE (IMPORTANT)
+--------------------------------------------------------------------------------
+
+The frontend NEVER sends email directly (no SMTP from the browser).
+
+Flow:
+
+  Dashboard (ASSET/dashboard.html)
+       |
+       |  HTTPS POST JSON
+       v
+  Backend API  POST /api/Users/send-invitation-email
+       |
+       |  Enqueue job
+       v
+  InvitationEmailQueueService (background worker, rate-limited)
+       |
+       |  Call send service
+       v
+  InvitationEmailService
+       |
+       |  CURRENT PRODUCTION: Microsoft Graph sendMail API
+       |  SMTP ALTERNATIVE  : SMTP client (e.g. MailKit) to mail server
+       v
+  Guest mailbox (To: EmailId)
+
+Why this design:
+  - Browser cannot safely hold SMTP credentials.
+  - Rate limiting and retries belong on the server.
+  - Same API supports first invite and reminder via isReminder flag.
+
+
+--------------------------------------------------------------------------------
+2. CURRENT PRODUCTION STATUS (AS BUILT TODAY)
+--------------------------------------------------------------------------------
+
+Email transport today is Microsoft Graph (NOT SMTP):
+
+  Backend file : Services/InvitationEmailService.cs
+  Method       : SendEmailWithGraphAsync(...)
+  Auth         : Azure AD App Registration (Client Credentials)
+  Send API     : Graph  Users[{SenderEmail}].SendMail
+
+Config section : InvitationEmail in appsettings.json / appsettings.Development.json
+
+  TenantId
+  ClientId
+  ClientSecret
+  SenderEmail
+  FromName
+  PublicBaseUrl
+  TemplateFilePath
+  MaxEmailsPerMinute
+  Attachments:Tier1FilePath / Tier1DisplayName
+  Attachments:Tier2FilePath / Tier2DisplayName
+  Attachments:Tier3FilePath / Tier3DisplayName
+
+If you switch to SMTP, keep the same frontend + queue + business rules.
+Only replace the final "send transport" inside InvitationEmailService.
+
+
+--------------------------------------------------------------------------------
+3. FRONTEND DETAILS (ASSET/dashboard.html)
+--------------------------------------------------------------------------------
+
+3.1 Base URLs / endpoints
+
+  baseURL =
+    https://udcwebapi2025-avdxdce9gngffkgx.uaenorth-01.azurewebsites.net
+
+  Endpoints used for email:
+    POST  {baseURL}/api/Users/send-invitation-email
+    GET   {baseURL}/api/Users/invitation-email-queue-status
+    GET   {baseURL}/api/Users/invitation-email-status/{jobId}
+    GET   {baseURL}/api/Users/invitation-email-status-by-email?emailId=...
+
+  Related (guest data):
+    GET   {baseURL}/api/Users/users
+    POST  {baseURL}/api/Users/create-user
+
+3.2 What the frontend sends (request body)
+
+  Function: buildInviteEmailPayload(user, isReminder)
+
+  JSON payload:
+  {
+    "fullName":  "<guest display name>",
+    "emailId":   "<guest email>",
+    "userType":  "<tier label, e.g. Guest / Deputy Governor / Students>",
+    "uniqueId":  "<guest UniqueId from DB>",
+    "isReminder": true | false
+  }
+
+  Rules:
+    - isReminder = false  → first invitation ("Send Mail")
+    - isReminder = true   → reminder only ("Send Reminder")
+    - Frontend does NOT send SMTP host/user/password.
+    - Frontend does NOT build final email HTML for Graph/SMTP send
+      (backend loads Templates/viewInvitation.html and merges placeholders).
+
+3.3 Frontend send UX behaviour
+
+  - Per-guest button states:
+      Send Mail
+      Queued / Sending...
+      Already Sent
+      Send Reminder / Send Reminder - N
+      Retry Send / Retry Reminder
+  - Eligible for reminder only when:
+      inviteSend = true (from API/DB)
+      AND status = pending
+      AND email exists
+  - After Accept/Declined: button becomes Already Sent (no reminder).
+  - Enqueue is serialized (small delay between POSTs) to avoid stampeding API.
+  - Polls invitation-email-queue-status while jobs are active.
+  - Updates local button state from job status + isReminder flag.
+  - Reminder subject shown in UI tooltips:
+      "A kind reminder to register for the azm Graduation Ceremony 2026."
+      (actual subject used in email is set by BACKEND)
+
+3.4 Frontend responsibilities checklist
+
+  [ ] Call send-invitation-email with correct payload
+  [ ] Pass uniqueId whenever available
+  [ ] Set isReminder correctly
+  [ ] Respect Already Sent / eligibility rules in UI
+  [ ] Poll queue status and reflect Queued/Processing/Failed/Completed
+  [ ] Never embed SMTP credentials in HTML/JS
+  [ ] Never talk to SMTP host from browser
+
+
+--------------------------------------------------------------------------------
+4. BACKEND DETAILS (API + QUEUE + SEND)
+--------------------------------------------------------------------------------
+
+4.1 Key files
+
+  Controllers/UsersController.cs
+    - POST send-invitation-email          → enqueue
+    - GET  invitation-email-status/{jobId}
+    - GET  invitation-email-status-by-email
+    - GET  invitation-email-queue-status
+
+  Services/InvitationEmailQueueService.cs
+    - BackgroundService queue worker
+    - Rate limit: InvitationEmail:MaxEmailsPerMinute (currently 5)
+
+  Services/InvitationEmailService.cs
+    - Business rules + HTML build + actual send transport
+    - MarkInviteSent / MarkReminderSent DB updates
+
+  Models/AZMModels.cs
+    - SendInvitationEmailRequest
+
+  Models/InvitationEmailQueueModels.cs
+    - Job status enum and queue overview models
+
+  Templates/viewInvitation.html
+    - HTML email body template with placeholders
+
+  Attachments/*.pdf
+    - Tier PDFs attached to outbound mail
+
+4.2 DI registration (Program.cs)
+
+  AddScoped<IInvitationEmailService, InvitationEmailService>()
+  AddSingleton<InvitationEmailQueueService>()
+  AddSingleton<IInvitationEmailQueue>(...)
+  AddHostedService(...InvitationEmailQueueService...)
+
+4.3 Enqueue rules (InvitationEmailQueueService.EnqueueAsync)
+
+  Input validation:
+    - EmailId required
+
+  Dedup while in-flight:
+    - If same email already Queued/Processing → return existing job
+
+  If isReminder = true:
+    - ValidateReminderEligibilityAsync(emailId, uniqueId)
+    - Must exist
+    - Must have InviteSend = true
+    - Must have Status = Pending
+    - Otherwise return Status = Skipped with message
+
+  If isReminder = false:
+    - If invite already sent → Status = Skipped, InviteSend = true
+
+  Else:
+    - Create InvitationEmailJob (Queued)
+    - Write jobId to channel for background worker
+
+4.4 Worker send rules (ExecuteAsync)
+
+  For each job:
+    1. Wait for rate limit window
+    2. Status = Processing
+    3. Call InvitationEmailService.SendInvitationAsync(...)
+       with FullName, EmailId, UserType, UniqueId, IsReminder
+    4. Map result:
+         Success            → Completed
+         Already sent (invite only) → Skipped
+         Else               → Failed (+ error message)
+
+4.5 InvitationEmailService.SendInvitationAsync — business logic
+
+  1. Validate EmailId
+  2. If reminder → re-check eligibility
+  3. Load azmUser by UniqueId (preferred) or EmailId
+  4. If first invite and InviteSend already true → fail/skip already sent
+  5. Build RSVP URL and View Invitation URL from PublicBaseUrl
+  6. Choose subject:
+       Reminder:
+         "A kind reminder to register for the azm Graduation Ceremony 2026."
+       First invite (all current types):
+         "Invitation azm Academy Graduation Ceremony"
+  7. Build HTML from Templates/viewInvitation.html + tier content
+  8. SEND EMAIL (Graph today / SMTP if replaced)
+  9. On success:
+       Reminder → ReminderCount = ReminderCount + 1
+       Invite   → InviteSend = 1
+  10. Return InvitationSendResult
+
+4.6 HTML template placeholders backend replaces
+
+  {{GuestName}}
+  {{InvitationLink}}
+  {{GreetingPrefix}}
+  {{Paragraph1}}
+  {{Paragraph2}}
+  {{Paragraph3}}
+  {{Paragraph3Display}}   (email template only)
+  {{FooterMessage}}
+  {{FooterMessageDisplay}}
+  {{FooterSignoff}}
+
+  Tier mapping (ResolveTier):
+    Deputy Governor / tier1 → tier1
+    Guest / tier2           → tier2
+    Students / Student / tier3 → tier3
+    default                 → tier2
+
+  Paragraph3 is empty for Guest/Student (tier2/tier3); shown for tier1 only.
+
+4.7 Attachments
+
+  Chosen by tier:
+    tier1 → Attachments/VIP.pdf
+    tier2 → Attachments/Guests.pdf
+    tier3 → Attachments/Students.pdf
+
+  Must exist on server publish output (csproj copies Attachments\*.pdf).
+
+4.8 Inline images
+
+  Base64 <img src="data:image/...;base64,..."> in HTML are extracted and
+  converted to CID inline attachments before send (Graph path).
+  SMTP path must do equivalent (CID multipart) or host images via HTTPS URLs.
+
+
+--------------------------------------------------------------------------------
+5. SMTP IMPLEMENTATION REQUIREMENTS (IF REPLACING GRAPH)
+--------------------------------------------------------------------------------
+
+5.1 Principle
+
+  Keep:
+    - Frontend API contract unchanged
+    - Queue / rate limit unchanged
+    - Eligibility / subjects / templates / attachments unchanged
+
+  Change only:
+    - Final transport method inside InvitationEmailService
+      (replace SendEmailWithGraphAsync with SendEmailWithSmtpAsync)
+
+5.2 Recommended library (.NET)
+
+  MailKit + MimeKit (common, reliable for SMTP + HTML + attachments)
+
+  NuGet:
+    MailKit
+    MimeKit
+
+5.3 SMTP config keys to add under InvitationEmail (example)
+
+  "InvitationEmail": {
+    "Provider": "Smtp",                 // or "Graph"
+    "SmtpHost": "smtp.office365.com",
+    "SmtpPort": 587,
+    "SmtpUseStartTls": true,
+    "SmtpUsername": "sender@yourdomain.com",
+    "SmtpPassword": "<secret>",
+    "SenderEmail": "sender@yourdomain.com",
+    "FromName": "Event Invitations",
+    "PublicBaseUrl": "https://your-public-site/...",
+    "TemplateFilePath": "Templates/viewInvitation.html",
+    "MaxEmailsPerMinute": 5,
+    "Attachments": { ... same as today ... }
+  }
+
+  Notes:
+    - Prefer Azure App Settings / Key Vault for SmtpPassword (not source control).
+    - Port 587 + STARTTLS is typical for Microsoft 365 / many hosts.
+    - Port 465 may require implicit SSL (SslOnConnect) depending on provider.
+
+5.4 SMTP send checklist (backend)
+
+  [ ] Connect to SmtpHost:SmtpPort
+  [ ] Authenticate with SmtpUsername/SmtpPassword (if required)
+  [ ] Build MimeMessage:
+        From    = FromName <SenderEmail>
+        To      = guest EmailId
+        Subject = invite subject OR reminder subject
+        Body    = multipart/alternative or multipart/related (HTML)
+        Attach  = tier PDF (application/pdf)
+        Inline  = CID images if still using base64 hero/logo
+  [ ] SendAsync
+  [ ] Dispose client/connection cleanly
+  [ ] Catch provider errors and return Failed with clear message
+  [ ] Keep MarkInviteSent / MarkReminderSent only after successful send
+
+5.5 Provider-specific notes
+
+  Microsoft 365 / Exchange Online SMTP:
+    - Often requires authenticated mailbox matching SenderEmail
+    - May need SMTP AUTH enabled for that mailbox
+    - Tenant security policies can block basic auth; app-based Graph may be preferred
+    - SPF/DKIM/DMARC must allow the sending domain
+
+  Gmail / Google Workspace:
+    - App password or OAuth; plain password often blocked
+    - Daily send limits apply
+
+  Custom / relay SMTP:
+    - Confirm allowed From domain
+    - Confirm TLS requirements
+    - Confirm rate limits and IP allowlists (Azure App Service outbound IPs)
+
+5.6 What SMTP does NOT change
+
+  - dashboard.html payload
+  - /api/Users/send-invitation-email
+  - Queue statuses: Queued / Processing / Completed / Failed / Skipped
+  - Reminder eligibility
+  - DB columns InviteSend / ReminderCount / Status
+
+
+--------------------------------------------------------------------------------
+6. API CONTRACT REFERENCE
+--------------------------------------------------------------------------------
+
+6.1 POST /api/Users/send-invitation-email
+
+  Request JSON:
+  {
+    "fullName": "Jane Doe",
+    "emailId": "jane@example.com",
+    "userType": "Guest",
+    "uniqueId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "isReminder": false
+  }
+
+  Typical success (Accepted / queued):
+  {
+    "success": true,
+    "jobId": "...",
+    "status": "Queued",
+    "emailId": "jane@example.com",
+    "queuePosition": 1,
+    "message": "Added to email queue"
+  }
+
+  Typical skipped (already invited, or reminder not eligible):
+  {
+    "success": false,
+    "status": "Skipped",
+    "emailId": "...",
+    "message": "...",
+    "inviteSend": true/false
+  }
+
+6.2 GET /api/Users/invitation-email-queue-status
+
+  Returns:
+    maxEmailsPerMinute
+    queuedCount / processingCount / sentLastMinute
+    completedCount / failedCount / skippedCount
+    jobs[] with:
+      jobId, status, emailId, fullName, userType,
+      isReminder, queuePosition, message, error,
+      inviteSend, viewInvitationLink, timestamps
+
+6.3 Subjects (backend source of truth)
+
+  First invite :
+    Invitation azm Academy Graduation Ceremony
+
+  Reminder only:
+    A kind reminder to register for the azm Graduation Ceremony 2026.
+
+
+--------------------------------------------------------------------------------
+7. DATABASE TOUCHPOINTS (EMAIL RELATED)
+--------------------------------------------------------------------------------
+
+Table: dbo.azmUser (relevant columns)
+
+  UniqueId
+  FullName
+  EmailId
+  UserType
+  Status              (Pending / Accepted / Declined)
+  InviteSend          (bit)  — set to 1 after successful first invite
+  ReminderCount       (int)  — incremented after each successful reminder
+  CreatedOn
+
+Reminder eligibility:
+  InviteSend = 1 AND Status = Pending
+
+First invite block:
+  InviteSend already = 1 → skip / do not send again as first invite
+
+
+--------------------------------------------------------------------------------
+8. FRONTEND vs BACKEND RESPONSIBILITY MATRIX
+--------------------------------------------------------------------------------
+
+Item                              Frontend                 Backend
+--------------------------------  -----------------------  ----------------------
+SMTP host / credentials           No                       Yes (server config)
+Choose invite vs reminder         Yes (isReminder)         Yes (validate + subject)
+Build HTML email body             No                       Yes (template merge)
+Attach tier PDF                   No                       Yes
+Rate limiting                     Soft enqueue spacing     Hard MaxEmailsPerMinute
+Mark InviteSend / ReminderCount   Optimistic UI update     Authoritative DB write
+Show queue progress               Yes (poll status API)    Yes (job store)
+Eligibility enforcement           UI guidance only         Hard server rules
+CORS                              Browser calls API        Allow dashboard origin
+
+
+--------------------------------------------------------------------------------
+9. ENVIRONMENT / DEPLOYMENT CHECKLIST
+--------------------------------------------------------------------------------
+
+Frontend deploy:
+  [ ] Upload ASSET/dashboard.html (and invitation pages as needed)
+  [ ] Confirm baseURL points to correct API environment
+
+Backend deploy:
+  [ ] Publish API with Templates/viewInvitation.html
+  [ ] Publish Attachments/*.pdf into output
+  [ ] Set InvitationEmail settings in Azure App Settings
+  [ ] If Graph: TenantId/ClientId/ClientSecret/SenderEmail + Mail.Send permission
+  [ ] If SMTP: SmtpHost/Port/TLS/Username/Password/SenderEmail
+  [ ] Confirm MaxEmailsPerMinute suitable for mailbox provider
+  [ ] Confirm DB has InviteSend + ReminderCount columns
+  [ ] Test first invite on a test guest
+  [ ] Test reminder on Pending + InviteSend=true guest
+  [ ] Confirm Accepted guest cannot receive reminder
+  [ ] Confirm PDF arrives and HTML renders in Outlook/Gmail
+
+
+--------------------------------------------------------------------------------
+10. TESTING SCENARIOS
+--------------------------------------------------------------------------------
+
+A. First invitation
+   Guest InviteSend=false, Status=Pending
+   POST isReminder=false
+   Expect: Queued → Completed, InviteSend=true, subject = invitation subject
+
+B. Duplicate first invitation
+   Guest InviteSend=true
+   POST isReminder=false
+   Expect: Skipped / already sent
+
+C. Reminder eligible
+   InviteSend=true, Status=Pending
+   POST isReminder=true
+   Expect: Completed, ReminderCount + 1, reminder subject
+
+D. Reminder not eligible (accepted)
+   Status=Accepted
+   POST isReminder=true
+   Expect: Skipped / not allowed
+
+E. Invalid recipient email
+   Expect: Failed with provider error visible in queue banner
+
+F. Bulk queue
+   Multiple POSTs
+   Expect: rate limit respected; banner shows queued/processing counts
+
+
+--------------------------------------------------------------------------------
+11. SECURITY NOTES
+--------------------------------------------------------------------------------
+
+  - Never put SMTP password / Graph client secret in frontend JS.
+  - Prefer Key Vault or Azure App Settings for secrets.
+  - Do not commit production secrets into git.
+  - Restrict dashboard access (current dashboard HTML itself has no login UI).
+  - Validate EmailId format server-side before SMTP/Graph send.
+  - Keep SaveToSentItems / SMTP logging policies aligned with org compliance.
+
+
+--------------------------------------------------------------------------------
+12. SUMMARY
+--------------------------------------------------------------------------------
+
+Frontend role:
+  Build JSON payload, queue via API, poll status, update UI.
+
+Backend role:
+  Validate, enqueue, rate-limit, personalize HTML, attach PDF,
+  send via Graph (current) or SMTP (if switched), update DB flags.
+
+SMTP migration impact:
+  Backend transport only. Frontend contract stays the same.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
